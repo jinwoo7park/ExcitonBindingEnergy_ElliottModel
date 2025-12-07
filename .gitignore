@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data files (선택사항 - 필요시 주석 해제)
+# *.txt
+# *.dat
+# *.csv
+
+# Output files
+*.pdf
+*_Fitted*.dat
+*_FitResult.dat
+*_CleanData.dat
+*_report.dat
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
