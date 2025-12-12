@@ -3,6 +3,9 @@ import axios from 'axios'
 import Plot from 'react-plotly.js'
 import './App.css'
 
+// API 기본 URL 설정 (환경 변수 또는 기본값)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+
 function App() {
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -63,7 +66,7 @@ function App() {
       formData.append('file', file)
 
       const response = await axios.post(
-        '/api/preview',
+        `${API_BASE_URL}/api/preview`,
         formData,
         {
           headers: {
@@ -149,7 +152,7 @@ function App() {
 
       console.log('Sending bounds:', boundsToSend)
 
-      const response = await axios.post('/api/analyze', {
+      const response = await axios.post(`${API_BASE_URL}/api/analyze`, {
         filename: previewData.filename,
         fitmode: fitmode,
         baseline_points: selectedPoints,
@@ -217,7 +220,7 @@ function App() {
   }
 
   const downloadFile = (filename) => {
-    window.open(`/api/download/${filename}`, '_blank')
+    window.open(`${API_BASE_URL}/api/download/${filename}`, '_blank')
   }
 
   const resetSelection = () => {

@@ -276,7 +276,42 @@ python3 simulation/simulation.py
 - **R² > 0.95**: 좋은 피팅
 - **R² < 0.90**: 피팅 개선 필요 (baseline 선택, 범위 조정 등)
 
+## 🌐 Vercel 배포
+
+### 환경 변수 설정
+
+Vercel에 배포할 때는 백엔드 API 서버 URL을 환경 변수로 설정해야 합니다.
+
+1. **Vercel 대시보드에서 환경 변수 설정:**
+   - 프로젝트 설정 > Environment Variables
+   - `VITE_API_BASE_URL` 추가
+   - 값: 백엔드 API 서버 URL (예: `https://your-backend.railway.app` 또는 `https://your-backend.render.com`)
+   - Production, Preview, Development 모두에 적용
+
+2. **로컬 개발 환경:**
+   - `.env.local` 파일 생성 (선택사항)
+   - `VITE_API_BASE_URL=http://localhost:8000` (또는 비워두면 Vite proxy 사용)
+
+3. **백엔드 배포:**
+   - FastAPI 백엔드는 별도로 배포해야 합니다 (Railway, Render, Heroku 등)
+   - CORS 설정이 올바른지 확인 (`api.py`에서 이미 설정됨)
+
+### 배포 후 확인사항
+
+- 백엔드 API 서버가 실행 중인지 확인
+- 환경 변수 `VITE_API_BASE_URL`이 올바르게 설정되었는지 확인
+- 브라우저 콘솔에서 네트워크 오류 확인
+
 ## 🛠️ 문제 해결
+
+### Vercel 배포 시 404 오류
+
+**원인**: 백엔드 API URL이 설정되지 않았거나 잘못 설정됨
+
+**해결 방법**:
+1. Vercel 대시보드에서 `VITE_API_BASE_URL` 환경 변수 확인
+2. 백엔드 API 서버가 실행 중인지 확인
+3. CORS 설정 확인 (백엔드에서 프론트엔드 도메인 허용)
 
 ### Python 의존성 설치 오류
 
@@ -326,6 +361,7 @@ npm install -g pnpm
 
 - [CODE_EXPLANATION.md](CODE_EXPLANATION.md): 상세한 코드 설명 및 과학적 배경
 - [README_WEB.md](README_WEB.md): 웹 인터페이스 상세 가이드
+- [DEPLOYMENT.md](DEPLOYMENT.md): 프로덕션 배포 가이드 (Railway, Render, Vercel)
 - [simulation/README.md](simulation/README.md): 시뮬레이션 기능 설명
 
 ## 📖 참고 문헌

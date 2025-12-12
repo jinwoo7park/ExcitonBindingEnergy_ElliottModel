@@ -15,9 +15,16 @@ from fitter import FSumFitter
 app = FastAPI(title="ExcitonBindingEnergy_ElliottModel API")
 
 # CORS 설정 (프론트엔드에서 접근 가능하도록)
+# 환경 변수에서 허용된 origin을 가져오거나 기본값 사용
+import os
+allowed_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:5173,https://elliott-model.vercel.app"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -523,4 +530,5 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
