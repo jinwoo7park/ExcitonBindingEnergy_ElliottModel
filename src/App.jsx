@@ -11,6 +11,7 @@ function App() {
   const [results, setResults] = useState(null)
   const [error, setError] = useState(null)
   const [fitmode, setFitmode] = useState(2)
+  const [logoError, setLogoError] = useState(false)
 
   // Initial values 기본값
   const defaultInitialValues = {
@@ -248,8 +249,19 @@ function App() {
     <div className="app">
       <div className="container">
         <div className="title-section">
-          <h1>Elliott Model: F-sum Rule Fitting</h1>
-          <p className="subtitle">Exciton binding energy calculation from UV-abs</p>
+          <div className="title-content">
+            <h1>Elliott Model: F-sum Rule Fitting</h1>
+            <p className="subtitle">Exciton binding energy calculation from UV-abs</p>
+          </div>
+          <img
+            src="/PNEL_logo.png"
+            alt="PNEL Logo"
+            className="title-logo"
+            onError={() => {
+              setLogoError(true)
+            }}
+            style={{ display: logoError ? 'none' : 'block' }}
+          />
         </div>
 
         <div className="form">
