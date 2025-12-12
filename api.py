@@ -448,7 +448,7 @@ async def analyze_file(request: AnalyzeRequest):
         print(f"DEBUG: Eb check - abs({Eb:.6f} - {Eb_lb}) = {Eb_diff_lb:.6f} <= {tolerance}? {Eb_diff_lb <= tolerance}")
         print(f"DEBUG: Eb check - abs({Eb:.6f} - {Eb_ub}) = {Eb_diff_ub:.6f} <= {tolerance}? {Eb_diff_ub <= tolerance}")
         if Eb_diff_lb <= tolerance or Eb_diff_ub <= tolerance:
-            boundary_warnings.append("Eb_Rydberg (리드버그 상수)")
+            boundary_warnings.append("R* (Rydberg constant)")
             print(f"DEBUG: ✓ Eb_Rydberg boundary reached!")
         
         # Gamma 경계값 확인 (0.0 ~ 0.2 eV)

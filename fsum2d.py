@@ -67,7 +67,7 @@ def fsum2d_slow(params, xdata, ydata):
         cosh_arg = (xdata - Enx) / gamma_safe
         # Clip cosh argument to prevent overflow
         cosh_arg = np.clip(cosh_arg, -700, 700)  # cosh(700) is near float64 max
-        anx = 2 * Eb / (i - q)**3 * (1 / np.cosh(cosh_arg))
+        anx = 2 * Eb / (i - q)**3 * _inv_cosh_clipped(cosh_arg)
         a1 = a1 + anx
     
     # Band contribution
@@ -95,7 +95,7 @@ def fsum2d_slow(params, xdata, ydata):
         cosh_arg = (xdata - E[i]) / gamma_safe
         # Clip cosh argument to prevent overflow
         cosh_arg = np.clip(cosh_arg, -700, 700)  # cosh(700) is near float64 max
-        a2[i, :] = (1 / np.cosh(cosh_arg)) * ((1 + b) / denominator)
+        a2[i, :] = _inv_cosh_clipped(cosh_arg) * ((1 + b) / denominator)
     
     # Integrate along E axis (axis=0)
     band_contribution = trapz(a2, E, axis=0)
@@ -187,7 +187,7 @@ def fsum2d(params, xdata, ydata):
 
         # f(E, x) = (1/cosh((x - E)/gamma)) * weight(E)
         cosh_arg = (xdata[None, :] - E[:, None]) / gamma_safe  # (m, N)
-        f = _inv_cosh_clipped(cosh_arg) * weight[:, None]       # (m, N)
+        f = _inv_cosh_clipped(cosh_arg) * weight[:, None]        # (m, N)
 
         # Boundary trapezoid between previous chunk and this chunk's first point
         if prev_E is not None:

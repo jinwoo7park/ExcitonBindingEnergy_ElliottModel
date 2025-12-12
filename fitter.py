@@ -931,7 +931,7 @@ class FSumFitter:
                     'mhcnp', 
                     'q', 
                     'Deff', 
-                    'R²',
+                    'R^2',
                     'Urbach Slope',
                     'Urbach Intercept'
                 ]

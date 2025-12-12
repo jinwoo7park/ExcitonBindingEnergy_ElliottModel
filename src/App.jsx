@@ -609,11 +609,11 @@ function App() {
                   <span className="param-value">{results.parameters?.Eg?.toFixed(4) ?? 'N/A'} eV</span>
                 </div>
                 <div className="param-item">
-                  <span className="param-label">Eb_Rydberg (리드버그 상수):</span>
+                  <span className="param-label">R* (Rydberg constant):</span>
                   <span className="param-value">{results.parameters?.Eb_Rydberg?.toFixed(2) ?? 'N/A'} meV</span>
                 </div>
                 <div className="param-item">
-                  <span className="param-label">Eb_GroundState (실제 Binding Energy):</span>
+                  <span className="param-label">Eb (exciton binding energy):</span>
                   <span className="param-value">{results.parameters?.Eb_GroundState?.toFixed(2) ?? 'N/A'} meV</span>
                 </div>
                 <div className="param-item">
