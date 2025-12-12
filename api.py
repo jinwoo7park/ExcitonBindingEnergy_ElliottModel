@@ -1,6 +1,6 @@
 """
 FastAPI 백엔드 서버
-F-sum rule fitting을 위한 REST API
+ExcitonBindingEnergy_ElliottModel - Exciton binding energy calculation using Elliott Model
 """
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +12,7 @@ import tempfile
 import numpy as np
 from fitter import FSumFitter
 
-app = FastAPI(title="F-sum Rule Fitting API")
+app = FastAPI(title="ExcitonBindingEnergy_ElliottModel API")
 
 # CORS 설정 (프론트엔드에서 접근 가능하도록)
 app.add_middleware(
@@ -62,7 +62,7 @@ class AnalyzeRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "F-sum Rule Fitting API", "version": "1.0.0"}
+    return {"message": "ExcitonBindingEnergy_ElliottModel API", "version": "1.0.0"}
 
 
 @app.post("/api/preview")

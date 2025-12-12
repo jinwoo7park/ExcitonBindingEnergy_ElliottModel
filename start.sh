@@ -2,7 +2,7 @@
 
 # 백엔드와 프론트엔드를 동시에 실행하는 스크립트
 
-echo "🚀 Starting F-sum Rule Fitting services..."
+echo "🚀 Starting ExcitonBindingEnergy_ElliottModel services..."
 
 # 백엔드 실행 (백그라운드)
 echo "📡 Starting FastAPI backend on port 8000..."

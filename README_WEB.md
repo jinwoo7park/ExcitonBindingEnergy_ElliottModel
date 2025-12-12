@@ -1,6 +1,6 @@
-# F-sum Rule Fitting - Web Interface
+# ExcitonBindingEnergy_ElliottModel - Web Interface
 
-웹 인터페이스를 사용하여 F-sum rule fitting을 수행할 수 있습니다.
+웹 인터페이스를 사용하여 Exciton binding energy를 계산하고 F-sum rule fitting을 수행할 수 있습니다.
 
 ## 빠른 시작 (가장 간단한 방법)
 

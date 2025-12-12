@@ -1,6 +1,6 @@
-# Elliot Fitting Tool - F-sum Rule 기반 흡수 스펙트럼 분석
+# ExcitonBindingEnergy_ElliottModel
 
-MATLAB 코드를 Python으로 변환한 **Elliot Theory 기반 F-sum rule fitting 도구**입니다. 반도체 및 나노구조 물질의 광학 흡수 스펙트럼에서 Exciton과 band-to-band 전이를 분리하여 정량적으로 분석합니다.
+MATLAB 코드를 Python으로 변환한 **Elliot Theory 기반 F-sum rule fitting 도구**입니다. 반도체 및 나노구조 물질의 광학 흡수 스펙트럼에서 Exciton binding energy를 계산하고 Exciton과 band-to-band 전이를 분리하여 정량적으로 분석합니다.
 
 ## 📋 목차
 

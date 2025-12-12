@@ -1,7 +1,7 @@
 {
-  "name": "fsum-fitting-web",
+  "name": "exciton-binding-energy-elliott-model",
   "version": "1.0.0",
-  "description": "F-sum Rule Fitting Web Interface",
+  "description": "Exciton Binding Energy Calculation using Elliott Model - F-sum Rule Fitting",
   "type": "module",
   "scripts": {
     "dev": "vite",

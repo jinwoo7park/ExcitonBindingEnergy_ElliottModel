@@ -306,8 +306,8 @@ function App() {
       <div className="container">
         <div className="title-section">
           <div className="title-content">
-            <h1>Elliott Model: F-sum Rule Fitting</h1>
-            <p className="subtitle">Exciton binding energy calculation from UV-abs</p>
+            <h1>ExcitonBindingEnergy_ElliottModel</h1>
+            <p className="subtitle">Exciton binding energy calculation from UV-abs using Elliott Model</p>
           </div>
           <img
             src="/PNEL_logo.png"
