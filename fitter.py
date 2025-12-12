@@ -69,7 +69,7 @@ class FSumFitter:
         # Deff = 3 - 2*q, so q <= 1.5 ensures Deff >= 0
         # Note: Eg will be dynamically set from data (first point where absorption > 0.01)
         # Note: Eg bounds will be set to Eg ± 0.4 eV dynamically
-        self.start_point = np.array([2.62, 0.050, 0.100, 37, 0.060, 0.5])  # Eb=50meV, gamma=100meV, q=0.5 (quasi-2D)
+        self.start_point = np.array([2.62, 0.050, 0.100, 10, 0.060, 0.2])  # Eb=50meV, gamma=100meV, q=0.2 (weak confinement)
         self.lb = np.array([1.00, 0.01, 0.00, 0.010, 0.000, 0.0])      # Eb lower bound: 10meV, q lower bound: 0 (bulk)
         self.rb = np.array([10.0, 2.0, 0.50, 10000.0, 0.999, 1.5])       # q upper bound: 1.5 (strong QD)
         # Note: Eg bounds will be dynamically updated in process_file
@@ -832,7 +832,7 @@ class FSumFitter:
             # Print results
             print(f'Iteration number {i}')
             print(f'Results: Eg={estimates[0]:.3f} (eV), Eb (Rydberg)={estimates[1]*1000:.3f} (meV), '
-                  f'gamma={estimates[2]:.3f} (eV), mu_cp={estimates[3]:.3f}, '
+                  f'gamma={estimates[2]*1000:.3f} (meV), mu_cp={estimates[3]:.3f}, '
                   f'c_np={estimates[4]:.3f}, q={estimates[5]:.3f}')
             
             # Calculate actual ground state binding energy depending on dimension
@@ -926,7 +926,7 @@ class FSumFitter:
                     'Eg (eV)', 
                     'Eb_Rydberg (meV)',  # 이름 변경
                     'Eb_GroundState (meV)',  # 실제 Binding Energy 추가
-                    'Gamma (eV)', 
+                    'Gamma (meV)', 
                     'ucvsq', 
                     'mhcnp', 
                     'q', 
@@ -981,7 +981,7 @@ class FSumFitter:
                     f'{fit_params[0]:.6f}',  # H열: Eg
                     f'{eb_rydberg*1000:.6f}',  # I열: Eb_Rydberg (meV)
                     f'{eb_actual*1000:.6f}',  # J열: Eb_GroundState (meV)
-                    f'{fit_params[2]:.6f}',  # K열: Gamma
+                    f'{fit_params[2]*1000:.6f}',  # K열: Gamma (meV)
                     f'{fit_params[3]:.6f}',  # L열: ucvsq
                     f'{fit_params[4]:.6f}',  # M열: mhcnp
                     f'{fit_params[5]:.6f}',  # N열: q

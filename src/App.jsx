@@ -14,20 +14,22 @@ function App() {
   const [logoError, setLogoError] = useState(false)
 
   // Initial values 기본값
+  // Eb와 Gamma는 meV 단위로 입력받음
   const defaultInitialValues = {
-    Eg: 2.62,
-    Eb: 0.050,
-    Gamma: 0.100,
-    ucvsq: 37,
+    Eg: 2.62,  // eV
+    Eb: 50.0,  // meV
+    Gamma: 100.0,  // meV
+    ucvsq: 10,
     mhcnp: 0.060,
-    q: 0.5
+    q: 0.2
   }
 
   // 상한/하한 기본값
+  // Eb와 Gamma는 meV 단위로 입력받음
   const defaultBounds = {
     Eg: { lower: null, upper: null }, // 동적으로 계산됨 (initial_Eg ± 0.4 eV)
-    Eb: { lower: 0.01, upper: 0.2 },
-    Gamma: { lower: 0.0, upper: 0.2 },
+    Eb: { lower: 10.0, upper: 200.0 },  // meV
+    Gamma: { lower: 0.0, upper: 200.0 },  // meV
     ucvsq: { lower: 0.010, upper: 1000.0 },
     mhcnp: { lower: 0.000, upper: 0.999 },
     q: { lower: 0.0, upper: 1.5 }
@@ -385,22 +387,22 @@ function App() {
                 />
               </div>
               <div className="initial-value-item">
-                <label htmlFor="Eb">Eb (eV):</label>
+                <label htmlFor="Eb">Eb (meV):</label>
                 <input
                   type="number"
                   id="Eb"
-                  step="0.001"
+                  step="0.1"
                   value={initialValues.Eb}
                   onChange={(e) => handleInitialValueChange('Eb', e.target.value)}
                   disabled={loading}
                 />
               </div>
               <div className="initial-value-item">
-                <label htmlFor="Gamma">Gamma (eV):</label>
+                <label htmlFor="Gamma">Gamma (meV):</label>
                 <input
                   type="number"
                   id="Gamma"
-                  step="0.001"
+                  step="0.1"
                   value={initialValues.Gamma}
                   onChange={(e) => handleInitialValueChange('Gamma', e.target.value)}
                   disabled={loading}
@@ -607,12 +609,16 @@ function App() {
                   <span className="param-value">{results.parameters?.Eg?.toFixed(4) ?? 'N/A'} eV</span>
                 </div>
                 <div className="param-item">
-                  <span className="param-label">Eb (Exciton binding):</span>
-                  <span className="param-value">{results.parameters?.Eb?.toFixed(4) ?? 'N/A'} eV</span>
+                  <span className="param-label">Eb_Rydberg (리드버그 상수):</span>
+                  <span className="param-value">{results.parameters?.Eb_Rydberg?.toFixed(2) ?? 'N/A'} meV</span>
+                </div>
+                <div className="param-item">
+                  <span className="param-label">Eb_GroundState (실제 Binding Energy):</span>
+                  <span className="param-value">{results.parameters?.Eb_GroundState?.toFixed(2) ?? 'N/A'} meV</span>
                 </div>
                 <div className="param-item">
                   <span className="param-label">Gamma (Linewidth):</span>
-                  <span className="param-value">{results.parameters?.Gamma?.toFixed(4) ?? 'N/A'} eV</span>
+                  <span className="param-value">{results.parameters?.Gamma?.toFixed(2) ?? 'N/A'} meV</span>
                 </div>
                 <div className="param-item">
                   <span className="param-label">ucvsq:</span>

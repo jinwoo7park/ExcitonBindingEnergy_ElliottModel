@@ -32,12 +32,12 @@ uploaded_files = {}
 
 
 class InitialValues(BaseModel):
-    Eg: float = 2.62
-    Eb: float = 0.050
-    Gamma: float = 0.100
-    ucvsq: float = 37
+    Eg: float = 2.62  # eV
+    Eb: float = 50.0  # meV (입력은 meV 단위로 받음)
+    Gamma: float = 100.0  # meV (입력은 meV 단위로 받음)
+    ucvsq: float = 10
     mhcnp: float = 0.060
-    q: float = 0.5
+    q: float = 0.2
 
 
 class Bounds(BaseModel):
@@ -278,12 +278,13 @@ async def analyze_file(request: AnalyzeRequest):
             fit_min, fit_max = sorted([x1, x3])
         
         # Initial values 설정
+        # Eb와 Gamma는 meV 단위로 입력받으므로 eV로 변환
         if request.initial_values:
             initial_vals = request.initial_values
             fitter.start_point = np.array([
-                initial_vals.Eg,
-                initial_vals.Eb,
-                initial_vals.Gamma,
+                initial_vals.Eg,  # eV
+                initial_vals.Eb / 1000.0,  # meV -> eV 변환
+                initial_vals.Gamma / 1000.0,  # meV -> eV 변환
                 initial_vals.ucvsq,
                 initial_vals.mhcnp,
                 initial_vals.q
@@ -324,6 +325,7 @@ async def analyze_file(request: AnalyzeRequest):
                 bounds_dict = {}
             
             # 사용자가 제공한 bounds로 업데이트
+            # Eb와 Gamma는 meV 단위로 입력받으므로 eV로 변환
             for idx, param in enumerate(param_order):
                 if param == 'Eg':
                     # Eg는 동적으로 계산되므로 건너뜀
@@ -336,18 +338,27 @@ async def analyze_file(request: AnalyzeRequest):
                     lower_val = param_bounds.get('lower')
                     upper_val = param_bounds.get('upper')
                     
+                    # Eb와 Gamma는 meV 단위로 입력받으므로 eV로 변환
+                    is_meV_unit = (param == 'Eb' or param == 'Gamma')
+                    
                     # None이 아니고 유효한 숫자인 경우에만 업데이트
                     if lower_val is not None and lower_val != '':
                         try:
-                            new_lb[idx] = float(lower_val)
-                            print(f"DEBUG: Updated {param} lower bound: {fitter.lb[idx]} -> {new_lb[idx]}")
+                            val = float(lower_val)
+                            if is_meV_unit:
+                                val = val / 1000.0  # meV -> eV 변환
+                            new_lb[idx] = val
+                            print(f"DEBUG: Updated {param} lower bound: {fitter.lb[idx]} -> {new_lb[idx]} ({'meV->eV' if is_meV_unit else 'direct'})")
                         except (ValueError, TypeError) as e:
                             print(f"DEBUG: Invalid lower bound for {param}: {lower_val}, error: {e}")
                     
                     if upper_val is not None and upper_val != '':
                         try:
-                            new_rb[idx] = float(upper_val)
-                            print(f"DEBUG: Updated {param} upper bound: {fitter.rb[idx]} -> {new_rb[idx]}")
+                            val = float(upper_val)
+                            if is_meV_unit:
+                                val = val / 1000.0  # meV -> eV 변환
+                            new_rb[idx] = val
+                            print(f"DEBUG: Updated {param} upper bound: {fitter.rb[idx]} -> {new_rb[idx]} ({'meV->eV' if is_meV_unit else 'direct'})")
                         except (ValueError, TypeError) as e:
                             print(f"DEBUG: Invalid upper bound for {param}: {upper_val}, error: {e}")
             
@@ -427,18 +438,18 @@ async def analyze_file(request: AnalyzeRequest):
             boundary_warnings.append("Eg (Band gap)")
             print(f"DEBUG: ✓ Eg boundary reached!")
         
-        # Eb 경계값 확인 (0.01 ~ 0.2 eV)
-        # 하한값: 0.01 eV, 상한값: 0.2 eV
+        # Eb 경계값 확인 (리드버그 상수: 0.01 ~ 2.0 eV)
+        # 하한값: 0.01 eV, 상한값: 2.0 eV
         Eb_lb = 0.01
-        Eb_ub = 0.2
+        Eb_ub = 2.0
         Eb_diff_lb = abs(Eb - Eb_lb)
         Eb_diff_ub = abs(Eb - Eb_ub)
         print(f"DEBUG: Eb differences - lb: {Eb_diff_lb:.6f}, ub: {Eb_diff_ub:.6f}, tolerance: {tolerance}")
         print(f"DEBUG: Eb check - abs({Eb:.6f} - {Eb_lb}) = {Eb_diff_lb:.6f} <= {tolerance}? {Eb_diff_lb <= tolerance}")
         print(f"DEBUG: Eb check - abs({Eb:.6f} - {Eb_ub}) = {Eb_diff_ub:.6f} <= {tolerance}? {Eb_diff_ub <= tolerance}")
         if Eb_diff_lb <= tolerance or Eb_diff_ub <= tolerance:
-            boundary_warnings.append("Eb (Exciton binding energy)")
-            print(f"DEBUG: ✓ Eb boundary reached!")
+            boundary_warnings.append("Eb_Rydberg (리드버그 상수)")
+            print(f"DEBUG: ✓ Eb_Rydberg boundary reached!")
         
         # Gamma 경계값 확인 (0.0 ~ 0.2 eV)
         Gamma_lb = 0.0
@@ -457,15 +468,23 @@ async def analyze_file(request: AnalyzeRequest):
         if q > 0.4:
             q_warning = "q값이 0.4보다 큽니다. Strongly confined low dimension에서는 다른 모델 적용이 필요할 수 있습니다."
         
+        # 실제 Ground State Binding Energy 계산
+        # Eb_actual = Eb / (1-q)^2 for n=1 state
+        if abs(1.0 - q) > 1e-5:
+            Eb_actual = Eb / ((1.0 - q)**2)
+        else:
+            Eb_actual = Eb  # Fallback if q approaches 1 (singularity)
+        
         return {
             "success": True,
             "results_file": results_file,
             "plot_file": plot_path,
             "name": results['name'],
             "parameters": {
-                "Eg": Eg,
-                "Eb": Eb,
-                "Gamma": Gamma,
+                "Eg": Eg,  # eV
+                "Eb_Rydberg": Eb * 1000.0,  # meV (리드버그 상수, 피팅 파라미터)
+                "Eb_GroundState": Eb_actual * 1000.0,  # meV (실제 Ground State Binding Energy)
+                "Gamma": Gamma * 1000.0,  # meV
                 "ucvsq": float(fit_params[3]),
                 "mhcnp": float(fit_params[4]),
                 "q": q,
