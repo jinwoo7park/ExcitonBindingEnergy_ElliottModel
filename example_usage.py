@@ -14,7 +14,7 @@ def example1():
     fitter = FSumFitter(deltaE=0.2, NS=20, fitmode=2)
     
     # 파일 분석 (모든 데이터셋)
-    results = fitter.process_file(filepath)
+    results = fitter.process_file(filepath, baseline_select=True)
     
     # 결과 저장
     fitter.save_results(results, output_dir='.')
@@ -39,7 +39,7 @@ def example2():
     fitter = FSumFitter()
     
     # 데이터셋 1, 2, 3만 분석
-    results = fitter.process_file(filepath, T=[1, 2, 3])
+    results = fitter.process_file(filepath, T=[1, 2, 3], baseline_select=True)
     
     fitter.save_results(results)
     fitter.plot_results(results, save_path='results.pdf')
@@ -54,8 +54,10 @@ def example3():
     
     fitter = FSumFitter()
     
-    # Baseline 제거
-    baseline = fitter.fit_baseline(xdata, ydata)
+    # Baseline 제거 (예시: 사용자가 직접 고른 구간을 mask로 지정)
+    # 실제 데이터에서는 투명 구간(흡수가 거의 없는 에너지 구간)을 직접 지정하세요.
+    baseline_mask = (xdata >= 2.0) & (xdata <= 2.2)
+    baseline, _ = fitter.fit_baseline(xdata, ydata, baseline_mask=baseline_mask)
     cleandata = ydata - baseline
     
     # Fitting 수행
@@ -81,7 +83,7 @@ def example4():
     fitter.lb = np.array([2.50, 0.01, 0.00, 0.010, 0.000, 0])
     fitter.rb = np.array([2.70, 0.25, 0.25, 1000.0, 0.999, 0])
     
-    results = fitter.process_file(filepath)
+    results = fitter.process_file(filepath, baseline_select=True)
     fitter.save_results(results)
     fitter.plot_results(results)
 

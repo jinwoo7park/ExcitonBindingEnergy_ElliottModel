@@ -6,6 +6,20 @@ import argparse
 import numpy as np
 from fitter import FSumFitter
 
+def _prompt_fitmode(default=2):
+    print()
+    print("fitmode를 선택하세요:")
+    print("  0 = No baseline")
+    print("  1 = Linear baseline")
+    print("  2 = Rayleigh scattering baseline (E^4)")
+    while True:
+        s = input(f"fitmode 입력 (0/1/2) [기본값: {default}]: ").strip()
+        if s == "":
+            return default
+        if s in ("0", "1", "2"):
+            return int(s)
+        print("❌ 잘못된 입력입니다. 0, 1, 2 중 하나를 입력하세요.")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -19,10 +33,19 @@ def main():
     parser.add_argument('--fitmode', type=int, default=2,
                        choices=[0, 1, 2],
                        help='Baseline fit mode: 0=no fit, 1=linear, 2=power function (default: 2)')
+    parser.add_argument('--choose-fitmode', action='store_true',
+                       help='Choose fitmode interactively at runtime (overrides --fitmode)')
     parser.add_argument('--datasets', type=str, default=None,
                        help='Comma-separated list of dataset indices to fit (1-indexed, default: all)')
     parser.add_argument('--no-plot', action='store_true',
                        help='Do not display plots')
+    # Baseline selection is required (automatic baseline is removed).
+    # Keep --baseline-select for backwards compatibility; default is True.
+    parser.add_argument('--baseline-select', action='store_true', dest='baseline_select',
+                       help='(default) Interactively select Step 0 baseline range from a plot (click two points)')
+    parser.add_argument('--no-baseline-select', action='store_false', dest='baseline_select',
+                       help='Disable baseline selection (will error because auto baseline is removed)')
+    parser.set_defaults(baseline_select=True)
     parser.add_argument('--output-dir', type=str, default='.',
                        help='Output directory for results (default: current directory)')
     
@@ -33,12 +56,16 @@ def main():
     if args.datasets:
         T = [int(x.strip()) for x in args.datasets.split(',')]
     
+    fitmode = args.fitmode
+    if args.choose_fitmode:
+        fitmode = _prompt_fitmode(default=fitmode)
+
     # Initialize fitter
-    fitter = FSumFitter(deltaE=args.deltaE, NS=args.NS, fitmode=args.fitmode)
+    fitter = FSumFitter(deltaE=args.deltaE, NS=args.NS, fitmode=fitmode)
     
     # Process file
     print(f"Processing file: {args.filename}")
-    results = fitter.process_file(args.filename, T=T)
+    results = fitter.process_file(args.filename, T=T, baseline_select=args.baseline_select)
     
     # Save results
     print(f"\nSaving results to {args.output_dir}")

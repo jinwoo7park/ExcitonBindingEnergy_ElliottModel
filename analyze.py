@@ -16,7 +16,31 @@ try:
 except ImportError:
     HAS_TKINTER = False
 
-def analyze_file(filepath, datasets=None, NS=20, fitmode=2, min_energy=None, max_energy=None, auto_range=None):
+def _prompt_fitmode(default=2):
+    """
+    Ask user to select fitmode interactively via stdin.
+    Returns an int in {0,1,2}. Falls back to default if stdin is not interactive.
+    """
+    try:
+        if not sys.stdin.isatty():
+            return default
+    except Exception:
+        return default
+
+    print()
+    print("fitmode를 선택하세요:")
+    print("  0 = No baseline")
+    print("  1 = Linear baseline")
+    print("  2 = Rayleigh scattering baseline (E^4)")
+    while True:
+        s = input(f"fitmode 입력 (0/1/2) [기본값: {default}]: ").strip()
+        if s == "":
+            return default
+        if s in ("0", "1", "2"):
+            return int(s)
+        print("❌ 잘못된 입력입니다. 0, 1, 2 중 하나를 입력하세요.")
+
+def analyze_file(filepath, datasets=None, NS=20, fitmode=2, min_energy=None, max_energy=None, auto_range=None, baseline_select=True):
     """
     파일을 분석하는 간단한 함수
     
@@ -37,6 +61,8 @@ def analyze_file(filepath, datasets=None, NS=20, fitmode=2, min_energy=None, max
     auto_range : bool, optional
         If False, disables automatic bandgap-focused fitting (Eg ± 0.5 eV).
         If True or None, automatically refits within Eg ± 0.5 eV (default: None, auto-enabled)
+    baseline_select : bool, optional
+        If True, Step 0 baseline range can be selected interactively from a plot (click two points).
     """
     if not os.path.exists(filepath):
         print(f"❌ 파일을 찾을 수 없습니다: {filepath}")
@@ -61,7 +87,14 @@ def analyze_file(filepath, datasets=None, NS=20, fitmode=2, min_energy=None, max
     fitter = FSumFitter(deltaE=0.2, NS=NS, fitmode=fitmode)
     
     # 파일 분석
-    results = fitter.process_file(filepath, T=datasets, min_energy=min_energy, max_energy=max_energy, auto_range=auto_range)
+    results = fitter.process_file(
+        filepath,
+        T=datasets,
+        min_energy=min_energy,
+        max_energy=max_energy,
+        auto_range=auto_range,
+        baseline_select=baseline_select
+    )
     
     # 결과 저장
     output_dir = os.path.dirname(filepath) or '.'
@@ -89,6 +122,10 @@ if __name__ == '__main__':
     min_energy = None
     max_energy = None
     auto_range = None  # Default: auto-enabled (Eg ± 0.5 eV)
+    # 기본 동작: fitmode는 실행 중 선택, baseline은 그래프에서 선택
+    baseline_select = True
+    choose_fitmode = True
+    fitmode_set_explicitly = False
     
     # 파일 경로가 제공되었는지 확인
     if len(sys.argv) >= 2 and not sys.argv[1].startswith('--'):
@@ -130,6 +167,8 @@ if __name__ == '__main__':
             print("  --min 2.0         : 최소 에너지 (eV)")
             print("  --max 3.0         : 최대 에너지 (eV)")
             print("  --no-auto         : Bandgap-focused fitting 비활성화 (기본값: Eg ± 0.5 eV 활성화)")
+            print("  --baseline-select : Step 0 baseline 구간을 그래프에서 직접 선택 (두 번 클릭)")
+            print("  --choose-fitmode  : 실행 중 fitmode를 직접 선택 (0/1/2)")
             print()
             print("예시:")
             print("  python3 analyze.py data.txt")
@@ -150,6 +189,7 @@ if __name__ == '__main__':
             i += 2
         elif sys.argv[i] == '--fitmode' and i + 1 < len(sys.argv):
             fitmode = int(sys.argv[i + 1])
+            fitmode_set_explicitly = True
             i += 2
         elif sys.argv[i] == '--min' and i + 1 < len(sys.argv):
             min_energy = float(sys.argv[i + 1])
@@ -160,8 +200,27 @@ if __name__ == '__main__':
         elif sys.argv[i] == '--no-auto':
             auto_range = False
             i += 1
+        elif sys.argv[i] == '--baseline-select':
+            baseline_select = True
+            i += 1
+        elif sys.argv[i] == '--choose-fitmode':
+            choose_fitmode = True
+            i += 1
         else:
             i += 1
+
+    # Interactive fitmode selection (default on, but skipped if user explicitly set --fitmode)
+    if choose_fitmode and not fitmode_set_explicitly:
+        fitmode = _prompt_fitmode(default=fitmode)
     
     # 분석 실행
-    analyze_file(filepath, datasets=datasets, NS=NS, fitmode=fitmode, min_energy=min_energy, max_energy=max_energy, auto_range=auto_range)
+    analyze_file(
+        filepath,
+        datasets=datasets,
+        NS=NS,
+        fitmode=fitmode,
+        min_energy=min_energy,
+        max_energy=max_energy,
+        auto_range=auto_range,
+        baseline_select=baseline_select
+    )

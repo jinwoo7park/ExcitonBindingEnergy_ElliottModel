@@ -19,6 +19,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual Environment
 venv/
@@ -33,28 +34,26 @@ ENV/
 *.swo
 *~
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Data files (선택사항 - 필요시 주석 해제)
-# *.txt
-# *.dat
-# *.csv
-
-# Output files
-*.pdf
-*_Fitted*.dat
-*_FitResult.dat
-*_CleanData.dat
-*_report.dat
-
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
+# Project specific
+*.pdf
+data_testresult/*.csv
+data_testresult/*.dat
+data_testresult/*.pdf
+
+# Node
+node_modules/
+dist/
+.pnpm-store/
 *.log
 
+# Build outputs
+build/
+dist/
 
-.vercel
-.env*.local
+# Environment
+.env
+.env.local

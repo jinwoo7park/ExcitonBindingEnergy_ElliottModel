@@ -2,16 +2,46 @@
 Main fitting script
 Python implementation of main.m
 """
+import os
+import tempfile
 import numpy as np
 from scipy.optimize import minimize
 from scipy.optimize import Bounds
 from scipy.optimize import NonlinearConstraint
-import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-import os
 from io import StringIO
 
 from fsum2d import fsum2d
+
+# Ensure Matplotlib has a writable config/cache directory (prevents slow import & warnings on some macOS setups)
+_mpl_config_dir = os.path.join(tempfile.gettempdir(), "matplotlib")
+try:
+    os.makedirs(_mpl_config_dir, exist_ok=True)
+    os.environ.setdefault("MPLCONFIGDIR", _mpl_config_dir)
+except Exception:
+    # If we can't create it, Matplotlib will fall back; not fatal.
+    pass
+
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+
+# 한글 폰트 설정 (macOS)
+try:
+    # macOS에서 사용 가능한 한글 폰트 찾기
+    font_list = [f.name for f in fm.fontManager.ttflist]
+    korean_fonts = ['AppleGothic', 'NanumGothic', 'NanumBarunGothic', 'Malgun Gothic', 'Apple SD Gothic Neo']
+    korean_font = None
+    for font_name in korean_fonts:
+        if font_name in font_list:
+            korean_font = font_name
+            break
+    
+    if korean_font:
+        plt.rcParams['font.family'] = korean_font
+        plt.rcParams['axes.unicode_minus'] = False  # 마이너스 기호 깨짐 방지
+except Exception:
+    # 폰트 설정 실패 시 경고만 출력하고 계속 진행
+    pass
 
 
 class FSumFitter:
@@ -38,15 +68,15 @@ class FSumFitter:
         # q parameter bounds: 0 (bulk) to 1.5 (strong QD)
         # Deff = 3 - 2*q, so q <= 1.5 ensures Deff >= 0
         # Note: Eg will be dynamically set from data (first point where absorption > 0.01)
-        # Note: Eg bounds will be set to Eg ± 0.2 eV dynamically
-        self.start_point = np.array([2.62, 0.050, 0.043, 37, 0.060, 0])  # Eb=50meV, q=0 (bulk)
+        # Note: Eg bounds will be set to Eg ± 0.4 eV dynamically
+        self.start_point = np.array([2.62, 0.050, 0.100, 37, 0.060, 0])  # Eb=50meV, gamma=100meV, q=0 (bulk)
         self.lb = np.array([2.54, 0.01, 0.00, 0.010, 0.000, 0.0])      # Eb lower bound: 10meV, q lower bound: 0 (bulk)
         self.rb = np.array([2.68, 0.2, 0.20, 1000.0, 0.999, 1.5])       # q upper bound: 1.5 (strong QD)
         # Note: Eg bounds will be dynamically updated in process_file
         
-    def fit_baseline(self, xdata, ydata, Eg=None, Eb=None):
+    def fit_baseline(self, xdata, ydata, baseline_mask):
         """
-        Fit baseline using data below exciton absorption (Eg - Eb)
+        Fit baseline using user-selected mask only.
         
         Parameters:
         -----------
@@ -54,73 +84,22 @@ class FSumFitter:
             Energy data
         ydata : array
             Absorption data
-        Eg : float, optional
-            Bandgap energy
-        Eb : float, optional
-            Exciton binding energy. If provided, uses data below (Eg - Eb) for baseline.
-            If None but Eg is provided, uses data below Eg (legacy mode)
+        baseline_mask : array (bool)
+            Mask indicating which data points were used for baseline fitting
             
         Returns:
         --------
         baseline : array
             Baseline values
         baseline_mask : array (bool)
-            Mask indicating which data points were used for baseline fitting
+            The same mask used for baseline fitting
         """
         if self.fitmode == 0:
             return np.zeros(len(xdata)), np.zeros(len(xdata), dtype=bool)
-        
-        # Determine which data points to use for baseline fitting
-        if Eg is not None:
-            if Eb is not None and Eb > 0:
-                # Use data well below exciton peak for baseline fitting
-                # Use Eg - 1.5*Eb to get approximately 50 points for baseline fitting
-                # Adjusted from Eg - 2*Eb to include more points while still avoiding excitonic absorption
-                safe_threshold = Eg - 1.5 * Eb
-                
-                # Check data sorting direction to correctly select low energy region
-                if xdata[0] < xdata[-1]:
-                    # Ascending: low energy first, xdata < threshold selects low energy region correctly
-                    baseline_mask = xdata < safe_threshold
-                else:
-                    # Descending: high energy first, xdata < threshold selects low energy region (array end)
-                    baseline_mask = xdata < safe_threshold
-                
-                # Use all eligible points below threshold (removed 50% percentile restriction)
-                # This ensures we use more points for better baseline fitting
-                if np.sum(baseline_mask) < 5:
-                    # Fallback: if too few points, use lowest energy points only
-                    # Check data sorting direction
-                    baseline_mask = np.zeros(len(xdata), dtype=bool)
-                    if xdata[0] < xdata[-1]:
-                        # Ascending: use first points (lowest energy) - use more points (30% of data)
-                        n_points = max(10, min(50, int(len(xdata) * 0.3)))
-                        baseline_mask[:n_points] = True
-                    else:
-                        # Descending: use last points (lowest energy) - use more points (30% of data)
-                        n_points = max(10, min(50, int(len(xdata) * 0.3)))
-                        baseline_mask[-n_points:] = True
-            else:
-                # Legacy mode: use data below Bandgap (if Eb not provided)
-                baseline_mask = xdata < Eg
-                if np.sum(baseline_mask) < 5:
-                    # Fallback: if too few points below Eg, use lowest energy points
-                    baseline_mask = np.zeros(len(xdata), dtype=bool)
-                    baseline_mask[:min(20, len(xdata))] = True
-        else:
-            # Legacy mode: use only the lowest energy points (most transparent region)
-            # Use more points (30%) for better baseline fitting
-            # Check if data is sorted ascending (low energy first) or descending (high energy first)
-            if xdata[0] < xdata[-1]:
-                # Ascending: low energy first, use first 30% of points
-                n_points = max(10, min(50, int(len(xdata) * 0.3)))
-                baseline_mask = np.zeros(len(xdata), dtype=bool)
-                baseline_mask[:n_points] = True
-            else:
-                # Descending: high energy first, use last 30% of points (lowest energy)
-                n_points = max(10, min(50, int(len(xdata) * 0.3)))
-                baseline_mask = np.zeros(len(xdata), dtype=bool)
-                baseline_mask[-n_points:] = True
+
+        baseline_mask = np.asarray(baseline_mask, dtype=bool)
+        if baseline_mask.shape != (len(xdata),):
+            raise ValueError("baseline_mask must have the same length as xdata")
         
         x_fit = xdata[baseline_mask]
         y_fit = ydata[baseline_mask]
@@ -134,23 +113,245 @@ class FSumFitter:
             baseline = np.polyval(coeffs, xdata)
             return baseline, baseline_mask
         elif self.fitmode == 2:
-            # Rayleigh scattering: y = a * E^4
-            # Fit coefficient a using least squares: a = sum(y * E^4) / sum(E^8)
+            # Rayleigh scattering: y = a * E^4 + b * E + c
+            # Fit coefficients using least squares
+            E_fit = x_fit
             E4_fit = x_fit ** 4
-            E8_fit = x_fit ** 8
             
-            # Avoid division by zero
-            if np.sum(E8_fit) < 1e-10:
-                return np.zeros(len(xdata)), baseline_mask
+            # Create design matrix: [E^4, E, 1]
+            A = np.column_stack([E4_fit, E_fit, np.ones(len(E_fit))])
             
-            # Calculate coefficient a
-            a = np.sum(y_fit * E4_fit) / np.sum(E8_fit)
+            # Solve least squares: A * [a, b, c]^T = y_fit
+            coeffs, residuals, rank, s = np.linalg.lstsq(A, y_fit, rcond=None)
             
-            # Generate baseline for full range: baseline = a * E^4
-            baseline = a * (xdata ** 4)
+            # Extract coefficients
+            a, b, c = coeffs[0], coeffs[1], coeffs[2]
+            
+            # Generate baseline for full range: baseline = a * E^4 + b * E + c
+            baseline = a * (xdata ** 4) + b * xdata + c
             return baseline, baseline_mask
         else:
             raise ValueError(f"Fitmode {self.fitmode} not implemented")
+
+    def select_baseline_mask_interactive(self, xdata, ydata, title=None, fitmode=None):
+        """
+        Interactive baseline range and fitting range selection using a plot.
+
+        Usage:
+        - If fitmode == 0: Click TWO points for fitting range only
+        - Otherwise: Click THREE points:
+          1. First point: baseline start point
+          2. Second point: baseline end point
+          3. Third point: fitting range end point
+        - Vertical lines appear immediately when clicking.
+        - Fitting range is from first point to last point.
+        - After selecting all points, fitting proceeds automatically.
+
+        Parameters
+        ----------
+        fitmode : int, optional
+            If 0, only fitting range (2 points) is selected.
+            Otherwise, baseline and fitting range (3 points) are selected.
+
+        Returns
+        -------
+        tuple : (baseline_mask, fit_mask) or None
+            baseline_mask: Mask for baseline range (first to second point, None if fitmode==0)
+            fit_mask: Mask for fitting range (first to last point)
+            Returns None if selection failed/cancelled.
+        """
+        try:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Plot data with better styling (solid line)
+            ax.plot(xdata, ydata, '-', color='black', linewidth=1.5, alpha=0.7, label='Data')
+            ax.set_xlabel('Energy (eV)', fontsize=12)
+            ax.set_ylabel('Absorption', fontsize=12)
+            if title:
+                ax.set_title(title, fontsize=13, fontweight='bold')
+            ax.grid(True, alpha=0.3, linestyle='--')
+            
+            # Improved instruction text
+            if fitmode == 0:
+                initial_text = "1) 피팅 범위 시작점 클릭\n2) 피팅 범위 끝점 클릭"
+            else:
+                initial_text = "1) Baseline 시작점 클릭\n2) Baseline 끝점 클릭\n3) 피팅 범위 끝점 클릭"
+            
+            instruction_text = ax.text(
+                0.02, 0.98,
+                initial_text,
+                transform=ax.transAxes,
+                va='top',
+                ha='left',
+                fontsize=11,
+                bbox=dict(boxstyle="round,pad=0.5", fc="lightyellow", ec="orange", alpha=0.9, linewidth=1.5)
+            )
+            
+            # Set better axis limits
+            y_margin = (np.max(ydata) - np.min(ydata)) * 0.1
+            ax.set_ylim([np.min(ydata) - y_margin, np.max(ydata) + y_margin])
+            
+            plt.tight_layout()
+            
+            # Store selected points and line objects
+            selected_points = []
+            vlines = []  # Store vertical line objects
+            baseline_vspan = None  # Store baseline vertical span object
+            fit_vspan = None  # Store fitting range vertical span object
+            
+            def on_click(event):
+                """Handle mouse click events"""
+                nonlocal baseline_vspan, fit_vspan, cid
+                if event.inaxes != ax:
+                    return
+                if event.button != 1:  # Only left mouse button
+                    return
+                # Get x coordinate
+                x_click = event.xdata
+                if x_click is None:
+                    return
+
+                selected_points.append(x_click)
+                
+                # Draw vertical line immediately
+                y_min, y_max = ax.get_ylim()
+                if fitmode == 0:
+                    # For fitmode==0, all points are for fitting range (green)
+                    vline = ax.axvline(x=x_click, color='green', linestyle='--', 
+                                      linewidth=2, alpha=0.8)
+                else:
+                    # For other modes, first two are baseline (orange), third is fitting end (green)
+                    if len(selected_points) <= 2:
+                        vline = ax.axvline(x=x_click, color='orange', linestyle='--', 
+                                          linewidth=2, alpha=0.8)
+                    else:
+                        vline = ax.axvline(x=x_click, color='green', linestyle='--', 
+                                          linewidth=2, alpha=0.8)
+                vlines.append(vline)
+                
+                # Update instruction text and draw spans
+                if fitmode == 0:
+                    # Two-point selection for fitting range only
+                    if len(selected_points) == 1:
+                        instruction_text.set_text(
+                            f"1) 피팅 범위 시작점 선택됨: {x_click:.3f} eV\n2) 피팅 범위 끝점을 클릭하세요"
+                        )
+                    elif len(selected_points) == 2:
+                        x1, x2 = selected_points[0], selected_points[1]
+                        fit_min, fit_max = (x1, x2) if x1 <= x2 else (x2, x1)
+                        
+                        # Draw fitting range span
+                        if fit_vspan is not None:
+                            fit_vspan.remove()
+                        fit_vspan = ax.axvspan(fit_min, fit_max, alpha=0.15, color='green')
+                        
+                        instruction_text.set_text(
+                            f"✅ 선택 완료!\n피팅 범위: {fit_min:.3f} - {fit_max:.3f} eV\n피팅을 시작합니다..."
+                        )
+                        
+                        # Disconnect event handler and close figure
+                        fig.canvas.mpl_disconnect(cid)
+                        plt.draw()
+                        plt.pause(0.5)  # Brief pause to show final state
+                        plt.close(fig)
+                        return
+                else:
+                    # Three-point selection: baseline + fitting range
+                    if len(selected_points) == 1:
+                        instruction_text.set_text(
+                            f"1) Baseline 시작점 선택됨: {x_click:.3f} eV\n2) Baseline 끝점을 클릭하세요"
+                        )
+                    elif len(selected_points) == 2:
+                        x1, x2 = selected_points[0], selected_points[1]
+                        baseline_min, baseline_max = (x1, x2) if x1 <= x2 else (x2, x1)
+                        
+                        # Draw baseline span
+                        if baseline_vspan is not None:
+                            baseline_vspan.remove()
+                        baseline_vspan = ax.axvspan(baseline_min, baseline_max, alpha=0.15, color='orange')
+                        
+                        instruction_text.set_text(
+                            f"2) Baseline 끝점 선택됨: {x2:.3f} eV\nBaseline 범위: {baseline_min:.3f} - {baseline_max:.3f} eV\n3) 피팅 범위 끝점을 클릭하세요"
+                        )
+                    elif len(selected_points) == 3:
+                        x1, x2, x3 = selected_points[0], selected_points[1], selected_points[2]
+                        baseline_min, baseline_max = (x1, x2) if x1 <= x2 else (x2, x1)
+                        fit_min, fit_max = (x1, x3) if x1 <= x3 else (x3, x1)
+                        
+                        # Draw fitting range span (green, more transparent)
+                        if fit_vspan is not None:
+                            fit_vspan.remove()
+                        fit_vspan = ax.axvspan(fit_min, fit_max, alpha=0.1, color='green')
+                        
+                        instruction_text.set_text(
+                            f"✅ 선택 완료!\nBaseline: {baseline_min:.3f} - {baseline_max:.3f} eV\n피팅 범위: {fit_min:.3f} - {fit_max:.3f} eV\n피팅을 시작합니다..."
+                        )
+                        
+                        # Disconnect event handler and close figure
+                        fig.canvas.mpl_disconnect(cid)
+                        plt.draw()
+                        plt.pause(0.5)  # Brief pause to show final state
+                        plt.close(fig)
+                        return
+                
+                plt.draw()
+
+            # Connect click event handler
+            cid = fig.canvas.mpl_connect('button_press_event', on_click)
+            
+            # Show plot and wait for clicks
+            required_points = 2 if fitmode == 0 else 3
+            plt.show(block=True)
+            
+            # Check if we got enough points
+            if len(selected_points) < required_points:
+                plt.close(fig)
+                return None
+
+            if fitmode == 0:
+                # Two points: fitting range only
+                x1, x2 = selected_points[0], selected_points[1]
+                fit_min, fit_max = (x1, x2) if x1 <= x2 else (x2, x1)
+                fit_mask = (xdata >= fit_min) & (xdata <= fit_max)
+                
+                if np.sum(fit_mask) < 2:
+                    return None
+                
+                print(f'   ✅ 선택된 피팅 범위: {fit_min:.3f} - {fit_max:.3f} eV ({np.sum(fit_mask)} points)')
+                return None, fit_mask  # baseline_mask is None for fitmode==0
+            else:
+                # Three points: baseline + fitting range
+                x1, x2, x3 = selected_points[0], selected_points[1], selected_points[2]
+                
+                # Baseline range: first to second point
+                baseline_min, baseline_max = (x1, x2) if x1 <= x2 else (x2, x1)
+                baseline_mask = (xdata >= baseline_min) & (xdata <= baseline_max)
+                
+                # Fitting range: first to third point
+                fit_min, fit_max = (x1, x3) if x1 <= x3 else (x3, x1)
+                fit_mask = (xdata >= fit_min) & (xdata <= fit_max)
+                
+                if np.sum(baseline_mask) < 2:
+                    return None
+                if np.sum(fit_mask) < 2:
+                    return None
+                
+                print(f'   ✅ 선택된 baseline 구간: {baseline_min:.3f} - {baseline_max:.3f} eV ({np.sum(baseline_mask)} points)')
+                print(f'   ✅ 선택된 피팅 범위: {fit_min:.3f} - {fit_max:.3f} eV ({np.sum(fit_mask)} points)')
+                return baseline_mask, fit_mask
+            
+        except Exception as e:
+            print(f"⚠️  Baseline 선택 중 오류 발생: {e}")
+            if 'fig' in locals():
+                plt.close(fig)
+            return None
+        except Exception:
+            # If backend/GUI is not available or user closed window unexpectedly
+            try:
+                plt.close('all')
+            except Exception:
+                pass
+            return None
     
     def objective_function(self, params, xdata, ydata):
         """
@@ -263,7 +464,7 @@ class FSumFitter:
         
         return slope, intersect, fitted_urbach
     
-    def process_file(self, filename, T=None, min_energy=None, max_energy=None, auto_range=None):
+    def process_file(self, filename, T=None, min_energy=None, max_energy=None, auto_range=None, baseline_select=True):
         """
         Process a data file and perform fitting
         
@@ -282,6 +483,9 @@ class FSumFitter:
         auto_range : bool, optional
             If False, disables automatic bandgap-focused fitting.
             If True or None, automatically refits within Eg +/- 0.5 eV (default: None, auto-enabled)
+        baseline_select : bool, optional
+            If True (default), Step 0 baseline range MUST be selected from an interactive plot
+            (click two x-positions to define the baseline range).
             
         Returns:
         --------
@@ -358,21 +562,11 @@ class FSumFitter:
         name = os.path.splitext(os.path.basename(filename))[0]
         
         data_size = raw.shape
-        xdata_original = raw[:, 0].copy()  # 원본 데이터 저장 (nm 또는 eV)
+        xdata_original = raw[:, 0].copy()  # 원본 데이터 저장 (nm 단위)
         
-        # nm 단위인지 eV 단위인지 자동 감지
-        # 일반적으로 nm는 100 이상, eV는 10 이하
-        # 첫 번째 열의 평균값이 50보다 크면 nm로 간주
-        is_nm = np.mean(xdata_original) > 50
-        
-        if is_nm:
-            # nm를 eV로 변환: E(eV) = 1239.84193 / λ(nm)
-            xdata = 1239.84193 / xdata_original
-            print(f'입력 데이터가 nm 단위로 감지되었습니다. eV로 변환합니다.')
-        else:
-            # 이미 eV 단위
-            xdata = xdata_original.copy()
-            print(f'입력 데이터가 eV 단위로 감지되었습니다.')
+        # nm를 eV로 변환: E(eV) = 1239.84193 / λ(nm)
+        # 모든 입력 데이터는 nm 단위로 가정
+        xdata = 1239.84193 / xdata_original
         
         # Determine which datasets to fit
         if T is None:
@@ -404,84 +598,131 @@ class FSumFitter:
                 
             print(f'Dataset {i} loaded successfully')
             
-            # Step 0: Estimate initial baseline using transparent region (lowest energy/highest wavelength)
-            # Use the lowest energy points where absorption is minimal
-            # This gives us a rough baseline estimate without needing Eg/Eb
+            # Step 0: Baseline and fitting range must be selected by the user
+            user_fit_mask = None  # Initialize user-selected fit mask
             if self.fitmode == 0:
-                print(f'   📊 Baseline mode: No baseline (fitmode=0)')
-                initial_baseline = np.zeros(len(xdata))
-                initial_baseline_mask = np.zeros(len(xdata), dtype=bool)
-            else:
-                baseline_mode_name = {1: 'Linear', 2: 'Rayleigh scattering (E^4)'}.get(self.fitmode, f'Mode {self.fitmode}')
-                print(f'   🔍 Estimating initial baseline from transparent region ({baseline_mode_name})...')
-                # Check data sorting direction
-                if xdata[0] < xdata[-1]:
-                    # Ascending: low energy first, use first 30% (lowest energies)
-                    transparent_mask = np.zeros(len(xdata), dtype=bool)
-                    transparent_mask[:int(len(xdata) * 0.3)] = True
+                # 웹 인터페이스를 위해 클릭 좌표를 직접 받을 수 있도록 수정
+                if hasattr(self, '_web_fit_mask'):
+                    user_fit_mask = self._web_fit_mask
+                    print(f'   📊 Baseline mode: No baseline (fitmode=0) - 웹에서 선택된 범위 사용')
                 else:
-                    # Descending: high energy first, use last 30% (lowest energies)
-                    transparent_mask = np.zeros(len(xdata), dtype=bool)
-                    transparent_mask[-int(len(xdata) * 0.3):] = True
-                initial_baseline, initial_baseline_mask = self.fit_baseline(xdata, raw[:, i], Eg=None, Eb=None)
+                    print(f'   📊 Baseline mode: No baseline (fitmode=0)')
+                    print(f'   🖱️ 피팅 범위를 그래프에서 선택하세요 (두 점)...')
+                    result = self.select_baseline_mask_interactive(
+                        xdata,
+                        raw[:, i],
+                        title=f"Fitting Range Selection - Dataset {i} (No Baseline)",
+                        fitmode=0
+                    )
+                    if result is None:
+                        raise ValueError("피팅 범위 선택이 취소되었거나 구간이 너무 짧습니다.")
+                    _, user_fit_mask = result  # For fitmode=0, baseline_mask is None
+                baseline = np.zeros(len(xdata))
+                baseline_mask = np.zeros(len(xdata), dtype=bool)
+            else:
+                # 웹 인터페이스를 위해 클릭 좌표를 직접 받을 수 있도록 수정
+                if hasattr(self, '_web_baseline_mask') and hasattr(self, '_web_fit_mask'):
+                    # 웹에서 전달된 마스크 사용
+                    user_baseline_mask = self._web_baseline_mask
+                    user_fit_mask = self._web_fit_mask
+                    baseline, baseline_mask = self.fit_baseline(xdata, raw[:, i], baseline_mask=user_baseline_mask)
+                elif not baseline_select:
+                    raise ValueError("baseline_select=False 이고 fitmode!=0 입니다. 자동 baseline은 제거되었으므로 baseline_select=True로 실행하세요.")
+                else:
+                    baseline_mode_name = {1: 'Linear', 2: 'Rayleigh scattering (E^4)'}.get(self.fitmode, f'Mode {self.fitmode}')
+                    print(f'   🖱️ Step 0 baseline 구간과 피팅 범위를 그래프에서 선택하세요 ({baseline_mode_name})...')
+                    result = self.select_baseline_mask_interactive(
+                        xdata,
+                        raw[:, i],
+                        title=f"Step 0 Baseline & Fitting Range Selection - Dataset {i} ({baseline_mode_name})",
+                        fitmode=self.fitmode
+                    )
+                    if result is None:
+                        raise ValueError("Baseline 구간 선택이 취소되었거나 구간이 너무 짧습니다. (자동 baseline은 제거됨)")
+                    user_baseline_mask, user_fit_mask = result
+                    baseline, baseline_mask = self.fit_baseline(xdata, raw[:, i], baseline_mask=user_baseline_mask)
             
-            # Step 1: Find bandgap from cleaned data (first point where (raw - baseline) > 0.01)
-            # This sets the initial Eg and dynamic bounds (Eg ± 0.2 eV)
+            # Step 1: Find bandgap from cleaned data
+            # 사용자가 제공한 initial_Eg를 우선 사용 (데이터 범위 내에 있으면)
+            user_provided_Eg = self.start_point[0]  # 사용자가 설정한 initial Eg
+            
             if self.fitmode == 0:
-                print(f'   🔍 Finding bandgap from raw data (first point where absorption > 0.01)...')
+                print(f'   🔍 Finding bandgap from raw data...')
                 cleaned_data = raw[:, i]  # No baseline subtraction
             else:
-                print(f'   🔍 Finding bandgap from cleaned data (first point where (raw - baseline) > 0.01)...')
-                cleaned_data = raw[:, i] - initial_baseline
+                print(f'   🔍 Finding bandgap from cleaned data (absorption significantly above baseline)...')
+                cleaned_data = raw[:, i] - baseline
             
-            # Find first point where cleaned data exceeds 0.01
-            # Check data sorting direction
-            if xdata[0] < xdata[-1]:
-                # Ascending: low energy first, search from low to high
-                for idx in range(len(cleaned_data)):
-                    if cleaned_data[idx] > 0.01:
-                        initial_Eg = xdata[idx]
-                        break
-                else:
-                    # If no point exceeds 0.01, use median energy
-                    initial_Eg = np.median(xdata)
+            # 사용자가 제공한 Eg가 데이터 범위 내에 있으면 우선 사용
+            if user_provided_Eg > 0 and np.min(xdata) <= user_provided_Eg <= np.max(xdata):
+                initial_Eg = user_provided_Eg
+                print(f'   📍 Using user-provided initial Bandgap: {initial_Eg:.3f} eV')
             else:
-                # Descending: high energy first, search from high to low (reverse)
-                for idx in range(len(cleaned_data) - 1, -1, -1):
-                    if cleaned_data[idx] > 0.01:
-                        initial_Eg = xdata[idx]
-                        break
+                # 데이터에서 계산: absorption이 baseline보다 유의하게 커지는 지점 찾기
+                # Threshold: max(0.1, 5% of max cleaned_data) to avoid noise
+                if len(cleaned_data) > 0:
+                    max_cleaned = np.max(cleaned_data)
+                    threshold = max(0.1, 0.05 * max_cleaned)  # At least 0.1 or 5% of max
                 else:
-                    # If no point exceeds 0.01, use median energy
-                    initial_Eg = np.median(xdata)
+                    threshold = 0.1
+                
+                # 에너지가 낮은 쪽(파장이 긴 쪽)에서 검색하여 bandgap 찾기
+                # 데이터가 에너지 내림차순(파장 오름차순)으로 정렬되어 있을 가능성이 높음
+                if xdata[0] > xdata[-1]:
+                    # Descending: high energy first, search from low energy (end) to high energy (start)
+                    # 에너지가 낮은 쪽에서 시작하여 높은 쪽으로 검색
+                    found_idx = None
+                    for idx in range(len(cleaned_data) - 1, -1, -1):
+                        if cleaned_data[idx] > threshold:
+                            found_idx = idx
+                            break
+                    
+                    if found_idx is not None:
+                        initial_Eg = xdata[found_idx]
+                    else:
+                        # If no point exceeds threshold, use median energy
+                        initial_Eg = np.median(xdata)
+                else:
+                    # Ascending: low energy first, search from low to high
+                    found_idx = None
+                    for idx in range(len(cleaned_data)):
+                        if cleaned_data[idx] > threshold:
+                            found_idx = idx
+                            break
+                    
+                    if found_idx is not None:
+                        initial_Eg = xdata[found_idx]
+                    else:
+                        # If no point exceeds threshold, use median energy
+                        initial_Eg = np.median(xdata)
+                
+                if self.fitmode == 0:
+                    print(f'   📍 Initial Bandgap (calculated from raw data): {initial_Eg:.3f} eV')
+                else:
+                    print(f'   📍 Initial Bandgap (calculated from cleaned data): {initial_Eg:.3f} eV')
             
-            if self.fitmode == 0:
-                print(f'   📍 Initial Bandgap (from raw data): {initial_Eg:.3f} eV')
-            else:
-                print(f'   📍 Initial Bandgap (from cleaned data): {initial_Eg:.3f} eV')
-            
-            # Update start_point with initial_Eg and set dynamic bounds (Eg ± 0.2 eV)
+            # Update start_point with initial_Eg and set dynamic bounds (Eg ± 0.4 eV)
+            # 사용자가 설정한 initial values를 사용하되, Eg는 위에서 결정된 값 사용
             dynamic_start_point = self.start_point.copy()
-            dynamic_start_point[0] = initial_Eg  # Eg
-            dynamic_start_point[1] = 0.050  # Eb = 50 meV
-            dynamic_start_point[5] = 0.0    # q = 0 (bulk)
+            dynamic_start_point[0] = initial_Eg  # Eg는 결정된 값 사용
+            # Eb, Gamma, ucvsq, mhcnp, q는 사용자가 설정한 initial values 사용 (self.start_point에 이미 설정됨)
             
-            # Set dynamic bounds: Eg ± 0.2 eV (always use this range, ignoring absolute bounds)
+            # Set dynamic bounds: Eg ± 0.4 eV (always use this range, ignoring absolute bounds)
             dynamic_lb = self.lb.copy()
-            dynamic_lb[0] = initial_Eg - 0.2  # Eg lower bound: Eg - 0.2 eV
+            dynamic_lb[0] = initial_Eg - 0.4  # Eg lower bound: Eg - 0.4 eV
             dynamic_rb = self.rb.copy()
-            dynamic_rb[0] = initial_Eg + 0.2  # Eg upper bound: Eg + 0.2 eV
+            dynamic_rb[0] = initial_Eg + 0.4  # Eg upper bound: Eg + 0.4 eV
             
             # Ensure bounds are valid (lower < upper)
             if dynamic_lb[0] >= dynamic_rb[0]:
                 # If bounds are invalid, use a wider range
-                dynamic_lb[0] = initial_Eg - 0.3
-                dynamic_rb[0] = initial_Eg + 0.3
+                dynamic_lb[0] = initial_Eg - 0.5
+                dynamic_rb[0] = initial_Eg + 0.5
             
-            print(f'   📊 Dynamic Eg bounds: {dynamic_lb[0]:.3f} - {dynamic_rb[0]:.3f} eV (±0.2 eV from initial)')
+            print(f'   📊 Dynamic Eg bounds: {dynamic_lb[0]:.3f} - {dynamic_rb[0]:.3f} eV (±0.4 eV from initial)')
             
             # Step 2: Remove initial baseline and do preliminary fit
-            initial_cleandata = raw[:, i] - initial_baseline
+            initial_cleandata = raw[:, i] - baseline
             # Use only reasonable energy range for preliminary fit (avoid extreme values)
             prelim_mask = (xdata >= np.percentile(xdata, 10)) & (xdata <= np.percentile(xdata, 90))
             print(f'   🔍 Preliminary fit to estimate Bandgap and Exciton binding energy...')
@@ -494,37 +735,23 @@ class FSumFitter:
             print(f'   📍 Estimated Bandgap: {approx_Eg:.3f} eV, Exciton binding: {approx_Eb*1000:.1f} meV')
             print(f'   📍 Exciton threshold (Eg - Eb): {exciton_threshold:.3f} eV')
             
-            # Step 3: Refine baseline using only truly transparent region
-            if self.fitmode == 0:
-                # No baseline mode: baseline is zero
-                baseline = np.zeros(len(xdata))
-                baseline_mask = np.zeros(len(xdata), dtype=bool)
-                print(f'   📊 Baseline mode: No baseline (fitmode=0) - using raw data directly')
-            else:
-                # Use Eg - 1.5*Eb to get approximately 50 points for baseline fitting
-                # Adjusted from Eg - 2*Eb to include more points while still avoiding excitonic absorption
-                baseline, baseline_mask = self.fit_baseline(xdata, raw[:, i], Eg=approx_Eg, Eb=approx_Eb)
-                baseline_points = np.sum(baseline_mask)
-                baseline_range_min = np.min(xdata[baseline_mask]) if np.any(baseline_mask) else 0
-                baseline_range_max = np.max(xdata[baseline_mask]) if np.any(baseline_mask) else 0
-                safe_threshold = approx_Eg - 1.5 * approx_Eb
-                baseline_mode_name = {1: 'Linear', 2: 'Rayleigh scattering (E^4)'}.get(self.fitmode, f'Mode {self.fitmode}')
-                print(f'   📊 Baseline ({baseline_mode_name}) fitted using {baseline_points} points in transparent region (below {safe_threshold:.3f} eV, Eg - 1.5*Eb)')
-                print(f'   📊 Baseline range: {baseline_range_min:.3f} - {baseline_range_max:.3f} eV')
-            
-            # Store baseline for saving
+            # Store baseline for saving (user-selected baseline)
             fittedbaseline[:, i] = baseline
             
-            # Step 4: Remove refined baseline
+            # Step 3: Remove baseline (user-selected)
             cleandata[:, i] = raw[:, i] - baseline
             ydata = cleandata[:, i]
             
-            # Step 5: Create mask for final fitting range
-            fit_mask = np.ones(len(xdata), dtype=bool)
-            if min_energy is not None:
-                fit_mask &= (xdata >= min_energy)
-            if max_energy is not None:
-                fit_mask &= (xdata <= max_energy)
+            # Step 4: Create mask for final fitting range
+            # Use user-selected fit_mask if available, otherwise use min_energy/max_energy
+            if user_fit_mask is not None:
+                fit_mask = user_fit_mask.copy()
+            else:
+                fit_mask = np.ones(len(xdata), dtype=bool)
+                if min_energy is not None:
+                    fit_mask &= (xdata >= min_energy)
+                if max_energy is not None:
+                    fit_mask &= (xdata <= max_energy)
             
             # Check if we have enough points
             if np.sum(fit_mask) < 10:
@@ -534,7 +761,7 @@ class FSumFitter:
             if min_energy is not None or max_energy is not None:
                 print(f'   Fitting range: {np.min(xdata[fit_mask]):.3f} - {np.max(xdata[fit_mask]):.3f} eV ({np.sum(fit_mask)} points)')
 
-            # Step 6: Final fit using cleaned data (baseline removed) and specified range
+            # Step 5: Final fit using cleaned data (baseline removed) and specified range
             estimates, sse, _, _, _ = self.fit_data(xdata[fit_mask], ydata[fit_mask], 
                                                      start_point=prelim_estimates, bounds=dynamic_bounds)
             
@@ -613,8 +840,7 @@ class FSumFitter:
         results = {
             'name': name,
             'xdata': xdata,  # eV 단위로 변환된 데이터
-            'xdata_original': xdata_original,  # 원본 데이터 (nm 또는 eV)
-            'is_nm': is_nm,  # nm 단위였는지 여부
+            'xdata_original': xdata_original,  # 원본 데이터 (nm 단위)
             'raw': raw,  # 원본 raw data 추가
             'fittedcurves': fittedcurves,
             'fittedexciton': fittedexciton,
@@ -656,8 +882,7 @@ class FSumFitter:
             return
         
         xdata = results['xdata']
-        is_nm = results.get('is_nm', False)
-        xdata_original = results.get('xdata_original', xdata)
+        xdata_original = results.get('xdata_original', xdata)  # nm 단위 원본 데이터
         
         # CSV 파일 경로
         csv_path = os.path.join(output_dir, f'{name}_Results.csv')
@@ -677,8 +902,8 @@ class FSumFitter:
                 fit_params = results['fitresult'][dataset_num]
                 
                 # 첫 번째 행: 데이터 헤더 + Fitting Parameters (H열부터)
-                # nm 단위였으면 첫 번째 열을 Wavelength (nm)로 표시
-                energy_header = 'Wavelength (nm)' if is_nm else 'Photon Energy (eV)'
+                # 첫 번째 열은 항상 Wavelength (nm)
+                energy_header = 'Wavelength (nm)'
                 header_row = [
                     energy_header, 
                     'Raw Data', 
@@ -756,10 +981,12 @@ class FSumFitter:
                 baseline = results['fittedbaseline'][:, dataset_idx]
                 exciton = results['fittedexciton'][:, dataset_idx]
                 band = results['fittedband'][:, dataset_idx]
-                fitted_total = results['fittedcurves'][:, dataset_idx]
+                fitted_curve = results['fittedcurves'][:, dataset_idx]  # baseline 제거된 상태의 fitting
+                # Fitted Result = Exciton + Band + Baseline (baseline을 다시 더함)
+                fitted_total = exciton + band + baseline
                 
-                # 첫 번째 열: nm 단위였으면 원본 nm 값, 아니면 eV 값
-                xdata_output = xdata_original if is_nm else xdata
+                # 첫 번째 열: 원본 nm 값
+                xdata_output = xdata_original
                 
                 for i in range(len(xdata)):
                     writer.writerow([
@@ -768,7 +995,7 @@ class FSumFitter:
                         f'{baseline[i]:.6f}',  # Baseline 추가
                         f'{exciton[i]:.6f}',
                         f'{band[i]:.6f}',
-                        f'{fitted_total[i]:.6f}'
+                        f'{fitted_total[i]:.6f}'  # Exciton + Band + Baseline
                     ])
     
     def plot_results(self, results, save_path=None):
@@ -811,13 +1038,20 @@ class FSumFitter:
             ax.plot(xdata, results['raw'][:, i], 'o', color='black', markersize=3, alpha=0.7, label='Raw Data')
             
             # Plot baseline
-            ax.plot(xdata, results['fittedbaseline'][:, i], '-', color='gray', linewidth=2, linestyle='--', label='Baseline')
+            baseline = results['fittedbaseline'][:, i]
+            ax.plot(xdata, baseline, '-', color='gray', linewidth=2, linestyle='--', label='Baseline')
             
             # Plot fitted exciton
-            ax.plot(xdata, results['fittedexciton'][:, i], '-', color='blue', linewidth=2, label='Fitted Exciton')
+            exciton = results['fittedexciton'][:, i]
+            ax.plot(xdata, exciton, '-', color='blue', linewidth=2, label='Fitted Exciton')
             
             # Plot fitted continuum (band)
-            ax.plot(xdata, results['fittedband'][:, i], '-', color='red', linewidth=2, label='Fitted Continuum')
+            band = results['fittedband'][:, i]
+            ax.plot(xdata, band, '-', color='red', linewidth=2, label='Fitted Continuum')
+            
+            # Plot fitted result (Exciton + Band + Baseline) as solid line
+            fitted_total = exciton + band + baseline
+            ax.plot(xdata, fitted_total, '-', color='green', linewidth=2.5, label='Fitted Result (Total)')
             
             # Plot vertical lines showing fitting range boundaries (green dashed)
             if np.any(fit_mask):
@@ -859,3 +1093,98 @@ class FSumFitter:
             plt.show()
         
         return fig
+    
+    def process_file_with_points(self, filename, baseline_points, fitmode, T=None, auto_range=None):
+        """
+        웹 인터페이스를 위한 메서드: 클릭 좌표를 직접 받아서 분석합니다.
+        process_file과 동일하지만, 그래프 대신 클릭 좌표를 직접 사용합니다.
+        """
+        # fitmode 설정
+        original_fitmode = self.fitmode
+        self.fitmode = fitmode
+        
+        try:
+            # 데이터 읽기하여 xdata 얻기
+            from io import StringIO
+            file_ext = os.path.splitext(filename)[1].lower()
+            delimiter = ',' if file_ext == '.csv' else None
+            
+            encodings = ['utf-8-sig', 'utf-8', 'cp949', 'euc-kr', 'latin-1']
+            all_lines = None
+            for encoding in encodings:
+                try:
+                    with open(filename, 'r', encoding=encoding) as f:
+                        all_lines = f.readlines()
+                    break
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+            
+            if all_lines is None:
+                raise ValueError("파일을 읽을 수 없습니다.")
+            
+            # 데이터 시작 줄 찾기
+            data_start_idx = 0
+            for i, line in enumerate(all_lines):
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if delimiter:
+                    parts = [p.strip() for p in line.split(delimiter)]
+                else:
+                    parts = line.split()
+                if len(parts) < 2:
+                    continue
+                try:
+                    float(parts[0])
+                    float(parts[1])
+                    data_start_idx = i
+                    break
+                except ValueError:
+                    continue
+            
+            data_lines = [all_lines[i].strip() for i in range(data_start_idx, len(all_lines)) if all_lines[i].strip()]
+            data_string = '\n'.join(data_lines)
+            
+            if file_ext == '.csv':
+                raw = np.loadtxt(StringIO(data_string), delimiter=',')
+            else:
+                raw = np.loadtxt(StringIO(data_string))
+            
+            xdata_original = raw[:, 0].copy()
+            xdata = 1239.84193 / xdata_original
+            
+            # 클릭 좌표를 사용하여 baseline_mask와 fit_mask 생성
+            if fitmode == 0:
+                if len(baseline_points) != 2:
+                    raise ValueError("fitmode=0일 때는 2개의 점이 필요합니다.")
+                fit_min, fit_max = sorted(baseline_points)
+                self._web_fit_mask = (xdata >= fit_min) & (xdata <= fit_max)
+                self._web_baseline_mask = None
+            else:
+                if len(baseline_points) != 3:
+                    raise ValueError("fitmode!=0일 때는 3개의 점이 필요합니다.")
+                x1, x2, x3 = baseline_points
+                baseline_min, baseline_max = sorted([x1, x2])
+                fit_min, fit_max = sorted([x1, x3])
+                self._web_baseline_mask = (xdata >= baseline_min) & (xdata <= baseline_max)
+                self._web_fit_mask = (xdata >= fit_min) & (xdata <= fit_max)
+            
+            # process_file 호출 (웹 마스크 사용)
+            results = self.process_file(
+                filename,
+                T=T,
+                min_energy=fit_min,
+                max_energy=fit_max,
+                auto_range=auto_range,
+                baseline_select=True  # 웹 마스크가 있으면 사용
+            )
+            
+            # 웹 마스크 제거
+            if hasattr(self, '_web_baseline_mask'):
+                delattr(self, '_web_baseline_mask')
+            if hasattr(self, '_web_fit_mask'):
+                delattr(self, '_web_fit_mask')
+        finally:
+            self.fitmode = original_fitmode
+        
+        return results
