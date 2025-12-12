@@ -20,7 +20,7 @@ function App() {
     Gamma: 0.100,
     ucvsq: 37,
     mhcnp: 0.060,
-    q: 0
+    q: 0.5
   }
 
   // 상한/하한 기본값

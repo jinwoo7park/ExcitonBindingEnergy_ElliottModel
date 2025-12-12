@@ -37,7 +37,7 @@ class InitialValues(BaseModel):
     Gamma: float = 0.100
     ucvsq: float = 37
     mhcnp: float = 0.060
-    q: float = 0
+    q: float = 0.5
 
 
 class Bounds(BaseModel):

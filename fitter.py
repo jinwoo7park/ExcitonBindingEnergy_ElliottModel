@@ -69,9 +69,9 @@ class FSumFitter:
         # Deff = 3 - 2*q, so q <= 1.5 ensures Deff >= 0
         # Note: Eg will be dynamically set from data (first point where absorption > 0.01)
         # Note: Eg bounds will be set to Eg ± 0.4 eV dynamically
-        self.start_point = np.array([2.62, 0.050, 0.100, 37, 0.060, 0])  # Eb=50meV, gamma=100meV, q=0 (bulk)
-        self.lb = np.array([2.54, 0.01, 0.00, 0.010, 0.000, 0.0])      # Eb lower bound: 10meV, q lower bound: 0 (bulk)
-        self.rb = np.array([2.68, 0.2, 0.20, 1000.0, 0.999, 1.5])       # q upper bound: 1.5 (strong QD)
+        self.start_point = np.array([2.62, 0.050, 0.100, 37, 0.060, 0.5])  # Eb=50meV, gamma=100meV, q=0.5 (quasi-2D)
+        self.lb = np.array([1.00, 0.01, 0.00, 0.010, 0.000, 0.0])      # Eb lower bound: 10meV, q lower bound: 0 (bulk)
+        self.rb = np.array([10.0, 2.0, 0.50, 10000.0, 0.999, 1.5])       # q upper bound: 1.5 (strong QD)
         # Note: Eg bounds will be dynamically updated in process_file
         
     def fit_baseline(self, xdata, ydata, baseline_mask):
@@ -831,9 +831,19 @@ class FSumFitter:
             
             # Print results
             print(f'Iteration number {i}')
-            print(f'Results: Eg={estimates[0]:.3f} (eV), Eb={estimates[1]*1000:.3f} (meV), '
+            print(f'Results: Eg={estimates[0]:.3f} (eV), Eb (Rydberg)={estimates[1]*1000:.3f} (meV), '
                   f'gamma={estimates[2]:.3f} (eV), mu_cp={estimates[3]:.3f}, '
                   f'c_np={estimates[4]:.3f}, q={estimates[5]:.3f}')
+            
+            # Calculate actual ground state binding energy depending on dimension
+            # Eb_actual = Eb / (1-q)^2 for n=1 state
+            q_val = estimates[5]
+            if abs(1.0 - q_val) > 1e-5:
+                eb_actual = estimates[1] / ((1.0 - q_val)**2)
+            else:
+                eb_actual = estimates[1]  # Fallback if q approaches 1 (singularity)
+                
+            print(f'Actual Ground State Binding Energy: {eb_actual*1000:.3f} (meV)')
             print(f'Effective dimension Deff={3 - 2*estimates[5]:.3f}')
             print(f'R^2={r_squared:.4f}')
         
@@ -914,7 +924,8 @@ class FSumFitter:
                     'Fitted Result (Band+Exciton)',
                     '',  # G열 (빈 열)
                     'Eg (eV)', 
-                    'Eb (meV)', 
+                    'Eb_Rydberg (meV)',  # 이름 변경
+                    'Eb_GroundState (meV)',  # 실제 Binding Energy 추가
                     'Gamma (eV)', 
                     'ucvsq', 
                     'mhcnp', 
@@ -936,19 +947,28 @@ class FSumFitter:
                     '',  # F열
                     '',  # G열
                     'Band gap energy',  # H열: Eg 설명
-                    'Exciton binding energy',  # I열: Eb 설명
-                    'Linewidth (broadening)',  # J열: Gamma 설명
-                    'Transition dipole moment squared',  # K열: ucvsq 설명
-                    'Mass parameter',  # L열: mhcnp 설명
-                    'Fractional dimension parameter (0=bulk, 0.5-0.6=quasi 2D, 1.5=strong QD)',  # M열: q 설명
-                    'Effective dimension (Deff = 3 - 2*q)',  # N열: Deff 설명
-                    'Coefficient of determination',  # O열: R² 설명
+                    'Effective Rydberg constant',  # I열: Eb (Rydberg) 설명
+                    'Actual GS Binding Energy (Eb/(1-q)^2)',  # J열: 실제 Eb 설명
+                    'Linewidth (broadening)',  # K열: Gamma 설명
+                    'Transition dipole moment squared',  # L열: ucvsq 설명
+                    'Mass parameter',  # M열: mhcnp 설명
+                    'Fractional dimension parameter (0=bulk, 0.5-0.6=quasi 2D, 1.5=strong QD)',  # N열: q 설명
+                    'Effective dimension (Deff = 3 - 2*q)',  # O열: Deff 설명
+                    'Coefficient of determination',  # P열: R² 설명
                 ]
                 # Urbach 정보 설명 추가
-                description_row.append('Urbach tail slope')  # P열: Urbach Slope 설명
-                description_row.append('Urbach tail intercept')  # Q열: Urbach Intercept 설명
+                description_row.append('Urbach tail slope')  # Q열: Urbach Slope 설명
+                description_row.append('Urbach tail intercept')  # R열: Urbach Intercept 설명
                 writer.writerow(description_row)
                 
+                # 실제 Eb 계산
+                q_val = fit_params[5]
+                eb_rydberg = fit_params[1]
+                if abs(1.0 - q_val) > 1e-5:
+                    eb_actual = eb_rydberg / ((1.0 - q_val)**2)
+                else:
+                    eb_actual = eb_rydberg
+
                 # 세 번째 행: Fitting Parameter 값들 (H열부터)
                 param_row = [
                     '',  # A열
@@ -959,13 +979,14 @@ class FSumFitter:
                     '',  # F열
                     '',  # G열
                     f'{fit_params[0]:.6f}',  # H열: Eg
-                    f'{fit_params[1]*1000:.6f}',  # I열: Eb (meV)
-                    f'{fit_params[2]:.6f}',  # J열: Gamma
-                    f'{fit_params[3]:.6f}',  # K열: ucvsq
-                    f'{fit_params[4]:.6f}',  # L열: mhcnp
-                    f'{fit_params[5]:.6f}',  # M열: q
-                    f'{3 - 2*fit_params[5]:.6f}',  # N열: Deff
-                    f'{results["quality"][dataset_num]:.6f}',  # O열: R²
+                    f'{eb_rydberg*1000:.6f}',  # I열: Eb_Rydberg (meV)
+                    f'{eb_actual*1000:.6f}',  # J열: Eb_GroundState (meV)
+                    f'{fit_params[2]:.6f}',  # K열: Gamma
+                    f'{fit_params[3]:.6f}',  # L열: ucvsq
+                    f'{fit_params[4]:.6f}',  # M열: mhcnp
+                    f'{fit_params[5]:.6f}',  # N열: q
+                    f'{3 - 2*fit_params[5]:.6f}',  # O열: Deff
+                    f'{results["quality"][dataset_num]:.6f}',  # P열: R²
                 ]
                 # Urbach 정보 추가
                 if len(results['slopes']) > dataset_num:
@@ -1077,8 +1098,14 @@ class FSumFitter:
             ax.set_ylabel('Absorption')
             
             # Title
-            Eb = results['fitresult'][idx, 1]
-            ax.set_title(f'Dataset: {idx+1}, Eb={Eb*1000:.3f} meV')
+            Eb_rydberg = results['fitresult'][idx, 1]
+            q_val = results['fitresult'][idx, 5]
+            if abs(1.0 - q_val) > 1e-5:
+                Eb_actual = Eb_rydberg / ((1.0 - q_val)**2)
+            else:
+                Eb_actual = Eb_rydberg
+            
+            ax.set_title(f'Dataset: {idx+1}, Eb(GS)={Eb_actual*1000:.1f} meV (R*={Eb_rydberg*1000:.1f} meV)')
             ax.legend(fontsize=8, loc='best')
             ax.grid(True, alpha=0.3)
         
