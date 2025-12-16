@@ -60,8 +60,19 @@ app.add_middleware(
 _base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Railway에서는 작업 디렉토리가 루트이므로, 현재 작업 디렉토리도 확인
 _working_dir = os.getcwd()
-# 두 경로 중 dist가 존재하는 경로 사용
-dist_path = os.path.join(_base_dir, "dist") if os.path.exists(os.path.join(_base_dir, "dist")) else os.path.join(_working_dir, "dist")
+# 여러 가능한 경로 확인 (Railway 환경 고려)
+_possible_dist_paths = [
+    os.path.join(_working_dir, "dist"),  # 현재 작업 디렉토리 (Railway 기본)
+    os.path.join(_base_dir, "dist"),      # api 폴더의 상위 디렉토리
+    os.path.join("/workspace", "dist"),   # Railway의 일반적인 작업 디렉토리
+]
+dist_path = None
+for path in _possible_dist_paths:
+    if os.path.exists(path) and os.path.isdir(path):
+        dist_path = path
+        break
+if dist_path is None:
+    dist_path = os.path.join(_working_dir, "dist")  # 기본값
 
 # 임시 파일 저장 디렉토리 (Vercel 환경에서는 /tmp만 쓰기 가능)
 TEMP_DIR = tempfile.mkdtemp(prefix="fsum_fitting_")
@@ -387,20 +398,27 @@ async def health_check():
 
 # 정적 파일 서빙 (모든 API 엔드포인트 정의 후 마운트)
 # Railway나 일반 배포 환경에서는 프론트엔드 빌드 파일을 서빙
-if os.path.exists(dist_path):
+print(f"🔍 Searching for dist folder...")
+print(f"   Base dir: {_base_dir}")
+print(f"   Working dir: {_working_dir}")
+print(f"   Checking possible paths:")
+for path in _possible_dist_paths:
+    exists = os.path.exists(path)
+    is_dir = os.path.isdir(path) if exists else False
+    print(f"   - {path}: exists={exists}, is_dir={is_dir}")
+
+if os.path.exists(dist_path) and os.path.isdir(dist_path):
+    # dist 폴더 내용 확인
+    dist_contents = os.listdir(dist_path) if os.path.exists(dist_path) else []
+    print(f"✅ Static files mounted from: {dist_path}")
+    print(f"   Dist folder contains: {dist_contents[:10]}... (showing first 10 items)")
     app.mount("/", StaticFiles(directory=dist_path, html=True), name="static")
     # API 엔드포인트(/api/*)가 먼저 정의되었으므로 우선순위를 가짐
-    print(f"✅ Static files mounted from: {dist_path}")
 else:
     print(f"⚠️  dist folder not found!")
-    print(f"   Tried path: {dist_path}")
-    print(f"   Base dir: {_base_dir}")
-    print(f"   Working dir: {_working_dir}")
-    print(f"   Base dir dist exists: {os.path.exists(os.path.join(_base_dir, 'dist'))}")
-    print(f"   Working dir dist exists: {os.path.exists(os.path.join(_working_dir, 'dist'))}")
-    # 디렉토리 목록 출력
-    print(f"   Contents of base dir: {os.listdir(_base_dir) if os.path.exists(_base_dir) else 'N/A'}")
-    print(f"   Contents of working dir: {os.listdir(_working_dir) if os.path.exists(_working_dir) else 'N/A'}")
+    print(f"   Final dist_path: {dist_path}")
+    print(f"   Working dir contents: {os.listdir(_working_dir) if os.path.exists(_working_dir) else 'N/A'}")
+    print(f"   Base dir contents: {os.listdir(_base_dir) if os.path.exists(_base_dir) else 'N/A'}")
 
 # Vercel serverless function handler
 handler = Mangum(app, lifespan="off")
