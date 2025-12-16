@@ -20,11 +20,7 @@ from io import BytesIO, StringIO
 import traceback
 
 # Import from local module
-try:
-    from fitter import FSumFitter
-except ImportError:
-    # Try importing with package prefix if running as a package
-    from .fitter import FSumFitter
+from .fitter import FSumFitter
 
 app = FastAPI(title="ExcitonBindingEnergy_ElliottModel API")
 

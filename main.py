@@ -4,7 +4,7 @@ Python implementation of main.m
 """
 import argparse
 import numpy as np
-from fitter import FSumFitter
+from api.fitter import FSumFitter
 
 def _prompt_fitmode(default=2):
     print()

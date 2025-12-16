@@ -11,7 +11,7 @@ from scipy.optimize import NonlinearConstraint
 from scipy.optimize import curve_fit
 from io import StringIO
 
-from fsum2d import fsum2d
+from .fsum2d import fsum2d
 
 # Ensure Matplotlib has a writable config/cache directory (prevents slow import & warnings on some macOS setups)
 _mpl_config_dir = os.path.join(tempfile.gettempdir(), "matplotlib")
