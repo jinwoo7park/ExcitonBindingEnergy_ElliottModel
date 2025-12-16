@@ -56,7 +56,12 @@ app.add_middleware(
 # 정적 파일 서빙 (프로덕션 모드 - API 엔드포인트보다 먼저 마운트하면 안됨)
 # Railway나 일반 배포 환경에서는 프론트엔드 빌드 파일을 서빙
 # 주의: API 엔드포인트 정의 후에 마운트해야 함
-dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist")
+# 경로 계산: api/index.py의 상위 디렉토리(dist 폴더 위치)
+_base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Railway에서는 작업 디렉토리가 루트이므로, 현재 작업 디렉토리도 확인
+_working_dir = os.getcwd()
+# 두 경로 중 dist가 존재하는 경로 사용
+dist_path = os.path.join(_base_dir, "dist") if os.path.exists(os.path.join(_base_dir, "dist")) else os.path.join(_working_dir, "dist")
 
 # 임시 파일 저장 디렉토리 (Vercel 환경에서는 /tmp만 쓰기 가능)
 TEMP_DIR = tempfile.mkdtemp(prefix="fsum_fitting_")
@@ -385,6 +390,14 @@ async def health_check():
 if os.path.exists(dist_path):
     app.mount("/", StaticFiles(directory=dist_path, html=True), name="static")
     # API 엔드포인트(/api/*)가 먼저 정의되었으므로 우선순위를 가짐
+    print(f"✅ Static files mounted from: {dist_path}")
+else:
+    print(f"⚠️  dist folder not found!")
+    print(f"   Tried path: {dist_path}")
+    print(f"   Base dir: {_base_dir}")
+    print(f"   Working dir: {_working_dir}")
+    print(f"   Base dir dist exists: {os.path.exists(os.path.join(_base_dir, 'dist'))}")
+    print(f"   Working dir dist exists: {os.path.exists(os.path.join(_working_dir, 'dist'))}")
 
 # Vercel serverless function handler
 handler = Mangum(app, lifespan="off")
