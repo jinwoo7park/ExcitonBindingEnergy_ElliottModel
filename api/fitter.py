@@ -116,22 +116,22 @@ class FSumFitter:
             baseline = np.polyval(coeffs, xdata)
             return baseline, baseline_mask
         elif self.fitmode == 2:
-            # Rayleigh scattering: y = a * E^4 + b * E + c
-            # Fit coefficients using least squares
+            # Rayleigh scattering: y = c * E^4 + constant
+            # Fit coefficients using least squares (1차항 제거)
             E_fit = x_fit
             E4_fit = x_fit ** 4
             
-            # Create design matrix: [E^4, E, 1]
-            A = np.column_stack([E4_fit, E_fit, np.ones(len(E_fit))])
+            # Create design matrix: [E^4, 1]
+            A = np.column_stack([E4_fit, np.ones(len(E_fit))])
             
-            # Solve least squares: A * [a, b, c]^T = y_fit
+            # Solve least squares: A * [c, constant]^T = y_fit
             coeffs, residuals, rank, s = np.linalg.lstsq(A, y_fit, rcond=None)
             
             # Extract coefficients
-            a, b, c = coeffs[0], coeffs[1], coeffs[2]
+            c_coeff, constant = coeffs[0], coeffs[1]
             
-            # Generate baseline for full range: baseline = a * E^4 + b * E + c
-            baseline = a * (xdata ** 4) + b * xdata + c
+            # Generate baseline for full range: baseline = c * E^4 + constant
+            baseline = c_coeff * (xdata ** 4) + constant
             return baseline, baseline_mask
         else:
             raise ValueError(f"Fitmode {self.fitmode} not implemented")

@@ -43,8 +43,24 @@ function App() {
   const [showBounds, setShowBounds] = useState(false)
 
   const handleFileChange = (e) => {
-    setFile(e.target.files[0])
-    setError(null)
+    const selectedFile = e.target.files[0]
+    if (selectedFile) {
+      const fileName = selectedFile.name.toLowerCase()
+      const isCSV = fileName.endsWith('.csv')
+      
+      if (!isCSV) {
+        setError('CSV 파일을 선택해주세요.')
+        e.target.value = '' // 파일 선택 초기화
+        setFile(null)
+      } else {
+        setFile(selectedFile)
+        setError(null)
+      }
+    } else {
+      setFile(null)
+      setError(null)
+    }
+    
     setResults(null)
     setPreviewData(null)
     setSelectedPoints([])
