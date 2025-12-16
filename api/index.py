@@ -18,11 +18,14 @@ import numpy as np
 import base64
 from io import BytesIO, StringIO
 import traceback
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend
+import matplotlib.pyplot as plt
 
 # Import from local module
 from .fitter import FSumFitter
 
-app = FastAPI(title="ExcitonBindingEnergy_ElliottModel API")
+app = FastAPI(title="Exciton Binding Energy Calculator API")
 
 # CORS 설정
 allowed_origins = os.getenv(
@@ -72,7 +75,7 @@ class AnalyzeRequest(BaseModel):
 @app.get("/api")
 @app.get("/")
 async def root():
-    return {"message": "ExcitonBindingEnergy_ElliottModel API", "version": "1.0.0"}
+    return {"message": "Exciton Binding Energy Calculator API", "version": "1.0.0"}
 
 @app.post("/api/preview")
 async def preview_file(file: UploadFile = File(...)):
@@ -248,8 +251,16 @@ async def analyze_data(request: AnalyzeRequest):
             name=request.filename
         )
         
+        # 결과 검증
+        if 'fitresult' not in results or len(results['fitresult']) == 0:
+            raise ValueError(
+                f"피팅 결과가 없습니다. fitresult 길이: {len(results.get('fitresult', []))}, "
+                f"T: {results.get('T', [])}, "
+                f"results keys: {list(results.keys())}"
+            )
+        
         # 결과 처리
-        fit_params = results['fitresult'][0] if len(results['fitresult']) > 0 else [0]*6
+        fit_params = results['fitresult'][0]
         quality = results['quality'][0] if len(results['quality']) > 0 else 0.0
         
         Eg = float(fit_params[0])
@@ -285,30 +296,36 @@ async def analyze_data(request: AnalyzeRequest):
         # 임시 파일에 저장 후 읽어서 리턴. Vercel /tmp는 쓰기 가능.
         
         with tempfile.TemporaryDirectory() as tmpdirname:
+            # results['name'] 확인
+            print(f"🔍 디버깅: results['name'] = {results['name']}")
+            
             fitter.save_results(results, output_dir=tmpdirname)
             
-            # CSV 읽기
-            csv_filename = f"0_{results['name']}_Results.csv"
+            # save_results 호출 후 실제 생성된 파일 목록 확인
+            existing_files = os.listdir(tmpdirname)
+            print(f"📁 save_results 호출 후 디렉토리 내 파일 목록: {existing_files}")
+            
+            # CSV 읽기 (확장자 제거)
+            name_without_ext = os.path.splitext(results['name'])[0]
+            csv_filename = f"0_{name_without_ext}_Results.csv"
             csv_path = os.path.join(tmpdirname, csv_filename)
+            print(f"🔍 예상 파일명: {csv_filename}, 예상 경로: {csv_path}")
+            
+            # 파일이 실제로 생성되었는지 확인
+            if not os.path.exists(csv_path):
+                # 디버깅: 디렉토리 내 파일 목록 확인
+                print(f"⚠️  CSV 파일을 찾을 수 없습니다: {csv_path}")
+                raise FileNotFoundError(
+                    f"결과 CSV 파일을 찾을 수 없습니다. 예상 파일명: {csv_filename}, "
+                    f"실제 생성된 파일: {existing_files}, "
+                    f"results['name']: {results['name']}"
+                )
+            
             with open(csv_path, 'r', encoding='utf-8') as f:
                 csv_content = f.read()
                 
-            # 그래프 이미지 생성
-            plot_path = os.path.join(tmpdirname, f"0_{results['name']}.pdf") # PDF로 저장됨
-            # 웹 표시용으로 PNG도 필요하거나, PDF를 다운로드용으로 줌.
-            # 하지만 미리보기용 이미지를 리턴해주면 좋음.
-            
-            # plot_results 메서드가 figure를 리턴하므로 이를 이용해서 PNG 생성
-            fig = fitter.plot_results(results, save_path=None) # 화면 표시 모드지만 figure 리턴
-            
-            buf = BytesIO()
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
-            plt.close(fig)
-            buf.seek(0)
-            plot_base64 = base64.b64encode(buf.read()).decode('utf-8')
-            
-            # PDF 파일 내용도 Base64로 인코딩하여 전달 (다운로드용)
-            # plot_results가 save_path가 있으면 저장함.
+            # PDF 파일 생성 (다운로드용)
+            plot_path = os.path.join(tmpdirname, f"0_{name_without_ext}.pdf")
             fitter.plot_results(results, save_path=plot_path)
             with open(plot_path, 'rb') as f:
                 pdf_base64 = base64.b64encode(f.read()).decode('utf-8')
@@ -329,14 +346,19 @@ async def analyze_data(request: AnalyzeRequest):
             "boundary_warnings": boundary_warnings,
             "q_warning": q_warning,
             "csv_content": csv_content,      # CSV 파일 텍스트 내용
-            "plot_image": f"data:image/png;base64,{plot_base64}", # 결과 그래프 이미지
             "pdf_content": f"data:application/pdf;base64,{pdf_base64}" # PDF 다운로드용
         }
         
     except Exception as e:
-        print(f"Analyze error: {e}")
-        print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = str(e)
+        error_trace = traceback.format_exc()
+        print(f"Analyze error: {error_msg}")
+        print(error_trace)
+        # 더 자세한 오류 정보를 클라이언트에 전달
+        raise HTTPException(
+            status_code=500, 
+            detail=f"분석 중 오류가 발생했습니다: {error_msg}"
+        )
 
 @app.get("/api/health")
 async def health_check():

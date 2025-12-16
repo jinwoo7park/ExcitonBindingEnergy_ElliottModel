@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:all": "npm run install:deps && concurrently -k -s first \"npm run dev:backend\" \"npm run dev:frontend:wait\"",
-    "dev:backend": "python3 api.py",
+    "dev:backend": "python3 -m api.index",
     "dev:frontend": "vite",
     "dev:frontend:wait": "node wait-for-backend.cjs && vite",
     "install:deps": "./install-deps.sh",

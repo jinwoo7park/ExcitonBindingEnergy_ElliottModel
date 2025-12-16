@@ -222,11 +222,53 @@ function App() {
     }
   }
 
-  const downloadContent = (content, filename, mimeType) => {
+  const downloadContent = (content, filename, mimeType, openInNewWindow = false) => {
     if (!content) return;
 
     // Base64 데이터인 경우 (이미지, pdf 등)
     if (content.startsWith('data:')) {
+      if (openInNewWindow && mimeType === 'application/pdf') {
+        // PDF는 새 창에서 열기 - Base64를 Blob으로 변환
+        try {
+          // data:application/pdf;base64, 부분 제거
+          const base64Data = content.split(',')[1];
+          const binaryString = atob(base64Data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const blobUrl = window.URL.createObjectURL(blob);
+          
+          const newWindow = window.open(blobUrl, '_blank');
+          if (newWindow) {
+            // 새 창이 닫힌 후 URL 해제
+            newWindow.addEventListener('beforeunload', () => {
+              window.URL.revokeObjectURL(blobUrl);
+            });
+          } else {
+            // 팝업이 차단된 경우 다운로드로 대체
+            window.URL.revokeObjectURL(blobUrl);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+          }
+        } catch (error) {
+          console.error('PDF 열기 오류:', error);
+          // 오류 발생 시 기본 다운로드 방식으로 대체
+          const link = document.createElement('a');
+          link.href = content;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+        return;
+      }
       const link = document.createElement('a');
       link.href = content;
       link.download = filename;
@@ -334,7 +376,7 @@ function App() {
       <div className="container">
         <div className="title-section">
           <div className="title-content">
-            <h1>ExcitonBindingEnergy_ElliottModel</h1>
+            <h1>Exciton Binding Energy Calculator</h1>
             <p className="subtitle">Exciton binding energy calculation from UV-abs using Elliott Model</p>
           </div>
           <img
@@ -629,15 +671,6 @@ function App() {
           <div className="results">
             <h2>분석 결과</h2>
 
-            {results.plot_image && (
-                <div className="result-image" style={{ marginBottom: '20px', textAlign: 'center' }}>
-                    <img 
-                        src={results.plot_image} 
-                        alt="Fitting Result" 
-                        style={{ maxWidth: '100%', border: '1px solid #ddd', borderRadius: '4px' }}
-                    />
-                </div>
-            )}
 
             <div className="parameters">
               <h3>Fitting 파라미터</h3>
@@ -703,10 +736,10 @@ function App() {
                   결과 CSV 다운로드
                 </button>
                 <button
-                  onClick={() => downloadContent(results.pdf_content, `0_${results.name}.pdf`, 'application/pdf')}
+                  onClick={() => downloadContent(results.pdf_content, `0_${results.name}.pdf`, 'application/pdf', true)}
                   className="btn btn-download"
                 >
-                  그래프 PDF 다운로드
+                  그래프 PDF 열기
                 </button>
               </div>
             </div>

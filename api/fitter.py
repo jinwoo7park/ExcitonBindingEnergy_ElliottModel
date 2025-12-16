@@ -22,6 +22,9 @@ except Exception:
     # If we can't create it, Matplotlib will fall back; not fatal.
     pass
 
+import matplotlib
+# Set the backend to 'Agg' to prevent interactive plotting issues in non-GUI environments
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 
@@ -554,11 +557,13 @@ class FSumFitter:
                 self._web_fit_mask = (xdata >= fit_min) & (xdata <= fit_max)
             
             # Call core logic
-            # T=[0] because raw has 2 columns (wavelength, data), so dataset index 1 is target (0-indexed T -> 0)
+            # raw has 2 columns (wavelength=0, data=1)
+            # dataset index 1 (1-indexed) -> T=[1] -> _process_core converts to [0] (0-indexed)
+            # Loop: for i in range(1, data_size[1]) -> i=1, check (i-1)=0 in T=[0] -> process dataset 1
             return self._process_core(
                 raw=raw, 
                 name=name, 
-                T=[0], 
+                T=[1],  # 1-indexed: dataset index 1 (second column)
                 min_energy=fit_min, 
                 max_energy=fit_max, 
                 auto_range=auto_range, 
@@ -899,11 +904,14 @@ class FSumFitter:
         import csv
         
         name = results['name']
+        # 확장자 제거 (파일명만 사용)
+        name_without_ext = os.path.splitext(name)[0]
         # 파일명 앞에 "0_" 추가
-        name = f'0_{name}'
+        name = f'0_{name_without_ext}'
         
         # 빈 배열 체크
-        if len(results['fitresult']) == 0:
+        fitresult = results.get('fitresult', [])
+        if len(fitresult) == 0:
             print("⚠️  경고: 처리된 데이터셋이 없습니다. 결과 파일을 저장하지 않습니다.")
             return
         
@@ -912,128 +920,200 @@ class FSumFitter:
         
         # CSV 파일 경로
         csv_path = os.path.join(output_dir, f'{name}_Results.csv')
+        print(f"📝 CSV 파일 저장 중: {csv_path} (원본 name: {results['name']}, 확장자 제거 후: {name_without_ext})")
         
         # CSV 파일 작성
-        with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile)
-            
-            # 모든 데이터셋에 대해 반복
-            for dataset_num, dataset_idx in enumerate(results['T']):
-                # 데이터셋 헤더
-                if dataset_num > 0:
-                    writer.writerow([])  # 데이터셋 간 구분을 위한 빈 줄
-                writer.writerow([f'Dataset {dataset_num + 1}'])
-                writer.writerow([])
+        try:
+            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
                 
-                fit_params = results['fitresult'][dataset_num]
-                
-                # 첫 번째 행: 데이터 헤더 + Fitting Parameters (H열부터)
-                # 첫 번째 열은 항상 Wavelength (nm)
-                energy_header = 'Wavelength (nm)'
-                header_row = [
-                    energy_header, 
-                    'Raw Data', 
-                    'Baseline',  # Baseline 추가
-                    'Fitted Exciton', 
-                    'Fitted Band', 
-                    'Fitted Result (Band+Exciton)',
-                    '',  # G열 (빈 열)
-                    'Eg (eV)', 
-                    'Eb_Rydberg (meV)',  # 이름 변경
-                    'Eb_GroundState (meV)',  # 실제 Binding Energy 추가
-                    'Gamma (meV)', 
-                    'ucvsq', 
-                    'mhcnp', 
-                    'q', 
-                    'Deff', 
-                    'R^2',
-                    'Urbach Slope',
-                    'Urbach Intercept'
-                ]
-                writer.writerow(header_row)
-                
-                # 두 번째 행: 파라미터 설명 (H열부터)
-                description_row = [
-                    '',  # A열
-                    '',  # B열
-                    '',  # C열
-                    '',  # D열
-                    '',  # E열
-                    '',  # F열
-                    '',  # G열
-                    'Band gap energy',  # H열: Eg 설명
-                    'Effective Rydberg constant',  # I열: Eb (Rydberg) 설명
-                    'Actual GS Binding Energy (Eb/(1-q)^2)',  # J열: 실제 Eb 설명
-                    'Linewidth (broadening)',  # K열: Gamma 설명
-                    'Transition dipole moment squared',  # L열: ucvsq 설명
-                    'Mass parameter',  # M열: mhcnp 설명
-                    'Fractional dimension parameter (0=bulk, 0.5-0.6=quasi 2D, 1.5=strong QD)',  # N열: q 설명
-                    'Effective dimension (Deff = 3 - 2*q)',  # O열: Deff 설명
-                    'Coefficient of determination',  # P열: R² 설명
-                ]
-                # Urbach 정보 설명 추가
-                description_row.append('Urbach tail slope')  # Q열: Urbach Slope 설명
-                description_row.append('Urbach tail intercept')  # R열: Urbach Intercept 설명
-                writer.writerow(description_row)
-                
-                # 실제 Eb 계산
-                q_val = fit_params[5]
-                eb_rydberg = fit_params[1]
-                if abs(1.0 - q_val) > 1e-5:
-                    eb_actual = eb_rydberg / ((1.0 - q_val)**2)
-                else:
-                    eb_actual = eb_rydberg
+                # 모든 데이터셋에 대해 반복
+                for dataset_num, dataset_idx in enumerate(results['T']):
+                    # 데이터셋 헤더
+                    if dataset_num > 0:
+                        writer.writerow([])  # 데이터셋 간 구분을 위한 빈 줄
+                    writer.writerow([f'Dataset {dataset_num + 1}'])
+                    writer.writerow([])  # 빈 행 1
+                    writer.writerow([])  # 빈 행 2
+                    
+                    fit_params = results['fitresult'][dataset_num]
+                    
+                    # 첫 번째 행: 데이터 헤더 + Fitting Parameters (H열부터)
+                    # 첫 번째 열은 항상 Wavelength (nm)
+                    energy_header = 'Wavelength (nm)'
+                    header_row = [
+                        energy_header, 
+                        'Raw Data', 
+                        'Baseline',  # Baseline 추가
+                        'Fitted Exciton', 
+                        'Fitted Band', 
+                        'Fitted Result (Band+Exciton)',
+                        '',  # G열 (빈 열)
+                        'Eg (eV)', 
+                        'Eb_Rydberg (meV)',  # 이름 변경
+                        'Eb_GroundState (meV)',  # 실제 Binding Energy 추가
+                        'Gamma (meV)', 
+                        'ucvsq', 
+                        'mhcnp', 
+                        'q', 
+                        'Deff', 
+                        'R^2',
+                        'Urbach Slope',
+                        'Urbach Intercept',
+                        'Baseline Range (nm)',
+                        'Fitting Range (nm)'
+                    ]
+                    writer.writerow(header_row)  # 4행
+                    
+                    # 두 번째 행: 파라미터 설명 (H열부터)
+                    description_row = [
+                        '',  # A열
+                        '',  # B열
+                        '',  # C열
+                        '',  # D열
+                        '',  # E열
+                        '',  # F열
+                        '',  # G열
+                        'Band gap energy',  # H열: Eg 설명
+                        'Effective Rydberg constant',  # I열: Eb (Rydberg) 설명
+                        'Actual GS Binding Energy (Eb/(1-q)^2)',  # J열: 실제 Eb 설명
+                        'Linewidth (broadening)',  # K열: Gamma 설명
+                        'Transition dipole moment squared',  # L열: ucvsq 설명
+                        'Mass parameter',  # M열: mhcnp 설명
+                        'Fractional dimension parameter (0=bulk, 0.5-0.6=quasi 2D, 1.5=strong QD)',  # N열: q 설명
+                        'Effective dimension (Deff = 3 - 2*q)',  # O열: Deff 설명
+                        'Coefficient of determination',  # P열: R² 설명
+                    ]
+                    # Urbach 정보 설명 추가
+                    description_row.append('Urbach tail slope')  # Q열: Urbach Slope 설명
+                    description_row.append('Urbach tail intercept')  # R열: Urbach Intercept 설명
+                    description_row.append('Baseline fitting wavelength range')  # S열: Baseline 범위 설명
+                    description_row.append('Overall fitting wavelength range')  # T열: Fitting 범위 설명
+                    writer.writerow(description_row)  # 5행
+                    
+                    # 실제 Eb 계산
+                    q_val = fit_params[5]
+                    eb_rydberg = fit_params[1]
+                    if abs(1.0 - q_val) > 1e-5:
+                        eb_actual = eb_rydberg / ((1.0 - q_val)**2)
+                    else:
+                        eb_actual = eb_rydberg
+                    
+                    # Baseline 범위와 Fitting 범위 계산 (nm 단위로 변환)
+                    xdata = results['xdata']  # eV 단위
+                    xdata_original = results.get('xdata_original', None)  # nm 단위
+                    baseline_mask = results.get('baseline_masks', [])
+                    fit_mask = results.get('fit_masks', [])
+                    
+                    # Baseline 범위 (nm 단위)
+                    if baseline_mask and len(baseline_mask) > dataset_num and baseline_mask[dataset_num] is not None:
+                        baseline_range_mask = baseline_mask[dataset_num]
+                        if np.any(baseline_range_mask):
+                            if xdata_original is not None:
+                                baseline_min = np.min(xdata_original[baseline_range_mask])
+                                baseline_max = np.max(xdata_original[baseline_range_mask])
+                            else:
+                                # eV를 nm로 변환: λ(nm) = 1239.84193 / E(eV)
+                                baseline_min_ev = np.min(xdata[baseline_range_mask])
+                                baseline_max_ev = np.max(xdata[baseline_range_mask])
+                                baseline_min = 1239.84193 / baseline_max_ev  # 최대 에너지 = 최소 파장
+                                baseline_max = 1239.84193 / baseline_min_ev  # 최소 에너지 = 최대 파장
+                            baseline_range_str = f'{baseline_min:.1f} - {baseline_max:.1f}'
+                        else:
+                            baseline_range_str = 'N/A'
+                    else:
+                        baseline_range_str = 'N/A'
+                    
+                    # Fitting 범위 (nm 단위)
+                    if fit_mask and len(fit_mask) > dataset_num and fit_mask[dataset_num] is not None:
+                        fitting_range_mask = fit_mask[dataset_num]
+                        if np.any(fitting_range_mask):
+                            if xdata_original is not None:
+                                fitting_min = np.min(xdata_original[fitting_range_mask])
+                                fitting_max = np.max(xdata_original[fitting_range_mask])
+                            else:
+                                # eV를 nm로 변환: λ(nm) = 1239.84193 / E(eV)
+                                fitting_min_ev = np.min(xdata[fitting_range_mask])
+                                fitting_max_ev = np.max(xdata[fitting_range_mask])
+                                fitting_min = 1239.84193 / fitting_max_ev  # 최대 에너지 = 최소 파장
+                                fitting_max = 1239.84193 / fitting_min_ev  # 최소 에너지 = 최대 파장
+                            fitting_range_str = f'{fitting_min:.1f} - {fitting_max:.1f}'
+                        else:
+                            fitting_range_str = 'N/A'
+                    else:
+                        fitting_range_str = 'N/A'
 
-                # 세 번째 행: Fitting Parameter 값들 (H열부터)
-                param_row = [
-                    '',  # A열
-                    '',  # B열
-                    '',  # C열
-                    '',  # D열
-                    '',  # E열
-                    '',  # F열
-                    '',  # G열
-                    f'{fit_params[0]:.6f}',  # H열: Eg
-                    f'{eb_rydberg*1000:.6f}',  # I열: Eb_Rydberg (meV)
-                    f'{eb_actual*1000:.6f}',  # J열: Eb_GroundState (meV)
-                    f'{fit_params[2]*1000:.6f}',  # K열: Gamma (meV)
-                    f'{fit_params[3]:.6f}',  # L열: ucvsq
-                    f'{fit_params[4]:.6f}',  # M열: mhcnp
-                    f'{fit_params[5]:.6f}',  # N열: q
-                    f'{3 - 2*fit_params[5]:.6f}',  # O열: Deff
-                    f'{results["quality"][dataset_num]:.6f}',  # P열: R²
-                ]
-                # Urbach 정보 추가
-                if len(results['slopes']) > dataset_num:
-                    param_row.append(f'{results["slopes"][dataset_num]:.6f}')  # P열: Urbach Slope
-                    param_row.append(f'{results["intersects"][dataset_num]:.6f}')  # Q열: Urbach Intercept
-                else:
-                    param_row.append('')  # P열
-                    param_row.append('')  # Q열
-                writer.writerow(param_row)
-                writer.writerow([])  # 파라미터와 데이터 사이 빈 줄
-                
-                # 데이터 작성
-                raw_data = results['raw'][:, dataset_idx]
-                baseline = results['fittedbaseline'][:, dataset_idx]
-                exciton = results['fittedexciton'][:, dataset_idx]
-                band = results['fittedband'][:, dataset_idx]
-                fitted_curve = results['fittedcurves'][:, dataset_idx]  # baseline 제거된 상태의 fitting
-                # Fitted Result = Exciton + Band + Baseline (baseline을 다시 더함)
-                fitted_total = exciton + band + baseline
-                
-                # 첫 번째 열: 원본 nm 값
-                xdata_output = xdata_original
-                
-                for i in range(len(xdata)):
-                    writer.writerow([
-                        f'{xdata_output[i]:.6f}',
-                        f'{raw_data[i]:.6f}',
-                        f'{baseline[i]:.6f}',  # Baseline 추가
-                        f'{exciton[i]:.6f}',
-                        f'{band[i]:.6f}',
-                        f'{fitted_total[i]:.6f}'  # Exciton + Band + Baseline
-                    ])
+                    # 세 번째 행: Fitting Parameter 값들 (H열부터) - 8행
+                    param_row = [
+                        '',  # A열
+                        '',  # B열
+                        '',  # C열
+                        '',  # D열
+                        '',  # E열
+                        '',  # F열
+                        '',  # G열
+                        f'{fit_params[0]:.6f}',  # H열: Eg
+                        f'{eb_rydberg*1000:.6f}',  # I열: Eb_Rydberg (meV)
+                        f'{eb_actual*1000:.6f}',  # J열: Eb_GroundState (meV)
+                        f'{fit_params[2]*1000:.6f}',  # K열: Gamma (meV)
+                        f'{fit_params[3]:.6f}',  # L열: ucvsq
+                        f'{fit_params[4]:.6f}',  # M열: mhcnp
+                        f'{fit_params[5]:.6f}',  # N열: q
+                        f'{3 - 2*fit_params[5]:.6f}',  # O열: Deff
+                        f'{results["quality"][dataset_num]:.6f}',  # P열: R²
+                    ]
+                    # Urbach 정보 추가
+                    if len(results['slopes']) > dataset_num:
+                        param_row.append(f'{results["slopes"][dataset_num]:.6f}')  # Q열: Urbach Slope
+                        param_row.append(f'{results["intersects"][dataset_num]:.6f}')  # R열: Urbach Intercept
+                    else:
+                        param_row.append('')  # Q열
+                        param_row.append('')  # R열
+                    
+                    # Baseline 범위와 Fitting 범위 추가 (이미 위에서 계산됨)
+                    param_row.append(baseline_range_str)  # S열: Baseline 범위
+                    param_row.append(fitting_range_str)  # T열: Fitting 범위
+                    param_row.append(baseline_range_str)  # S열: Baseline 범위
+                    param_row.append(fitting_range_str)  # T열: Fitting 범위
+                    writer.writerow(param_row)  # 6행: H열부터 파라미터 값 표시
+                    # 빈 행 제거 - 데이터가 바로 7행부터 시작
+                    
+                    # 데이터 작성 (7행부터 시작)
+                    raw_data = results['raw'][:, dataset_idx]
+                    baseline = results['fittedbaseline'][:, dataset_idx]
+                    exciton = results['fittedexciton'][:, dataset_idx]
+                    band = results['fittedband'][:, dataset_idx]
+                    fitted_curve = results['fittedcurves'][:, dataset_idx]  # baseline 제거된 상태의 fitting
+                    # Fitted Result = Exciton + Band + Baseline (baseline을 다시 더함)
+                    fitted_total = exciton + band + baseline
+                    
+                    # 첫 번째 열: 원본 nm 값
+                    xdata_output = xdata_original
+                    
+                    for i in range(len(xdata)):
+                        writer.writerow([
+                            f'{xdata_output[i]:.6f}',
+                            f'{raw_data[i]:.6f}',
+                            f'{baseline[i]:.6f}',  # Baseline 추가
+                            f'{exciton[i]:.6f}',
+                            f'{band[i]:.6f}',
+                            f'{fitted_total[i]:.6f}'  # Exciton + Band + Baseline
+                        ])
+        except Exception as e:
+            print(f"⚠️  CSV 파일 저장 중 오류 발생: {e}")
+            print(f"   파일 경로: {csv_path}")
+            import traceback
+            print(traceback.format_exc())
+            raise
+        finally:
+            # 파일이 실제로 생성되었는지 확인
+            if os.path.exists(csv_path):
+                print(f"✅ CSV 파일 생성 완료: {csv_path}")
+            else:
+                print(f"❌ CSV 파일이 생성되지 않았습니다: {csv_path}")
+                if os.path.exists(output_dir):
+                    existing_files = os.listdir(output_dir)
+                    print(f"📁 디렉토리 내 파일 목록: {existing_files}")
     
     def plot_results(self, results, save_path=None):
         """
