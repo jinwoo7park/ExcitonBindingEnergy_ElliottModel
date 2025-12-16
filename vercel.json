@@ -4,17 +4,7 @@
   "devCommand": "pnpm dev",
   "installCommand": "pnpm install --no-frozen-lockfile",
   "framework": "vite",
-  "functions": {
-    "api/**/*.py": {
-      "maxDuration": 30,
-      "includeFiles": "api/**"
-    }
-  },
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
-    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

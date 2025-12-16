@@ -38,7 +38,8 @@ else:
     allowed_origins = [
         "http://localhost:3000",
         "http://localhost:5173",
-        "https://elliott-model.vercel.app"
+        "https://elliott-model.vercel.app",
+        "https://*.vercel.app"  # 모든 Vercel 배포 URL 허용
     ]
     # Vercel 배포 URL 자동 감지
     vercel_url = os.getenv("VERCEL_URL")
