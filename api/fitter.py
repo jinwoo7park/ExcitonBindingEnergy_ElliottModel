@@ -466,31 +466,7 @@ class FSumFitter:
     
     def process_file(self, filename, T=None, min_energy=None, max_energy=None, auto_range=None, baseline_select=True):
         """
-        Process a data file and perform fitting
-        
-        Parameters:
-        -----------
-        filename : str
-            Path to data file (tab, space, or comma delimited)
-            Supports .txt, .dat, and .csv files
-        T : list, optional
-            List of dataset indices to fit (1-indexed, like MATLAB)
-            If None, fits all datasets
-        min_energy : float, optional
-            Minimum energy for fitting range (eV)
-        max_energy : float, optional
-            Maximum energy for fitting range (eV)
-        auto_range : bool, optional
-            If False, disables automatic bandgap-focused fitting.
-            If True or None, automatically refits within Eg +/- 0.5 eV (default: None, auto-enabled)
-        baseline_select : bool, optional
-            If True (default), Step 0 baseline range MUST be selected from an interactive plot
-            (click two x-positions to define the baseline range).
-            
-        Returns:
-        --------
-        results : dict
-            Dictionary containing all results
+        Process a data file (wrapper for _process_core)
         """
         # Read data - CSV 파일인지 확인하여 구분자 설정
         file_ext = os.path.splitext(filename)[1].lower()
@@ -511,55 +487,94 @@ class FSumFitter:
             raise ValueError(f"파일을 읽을 수 없습니다. 지원되는 인코딩을 시도했지만 실패했습니다: {encodings}")
         
         # 숫자 데이터가 시작하는 줄 찾기
-        # 첫 번째와 두 번째 열이 모두 숫자인 줄을 찾음
         data_start_idx = 0
         for i, line in enumerate(all_lines):
             line = line.strip()
-            if not line:  # 빈 줄 건너뛰기
-                continue
-            if line.startswith('#'):  # 주석 줄 건너뛰기
-                continue
-            
-            # 구분자로 분리
+            if not line or line.startswith('#'): continue
             if delimiter:
                 parts = [p.strip() for p in line.split(delimiter)]
             else:
-                # 공백/탭으로 분리
                 parts = line.split()
-            
-            if len(parts) < 2:
-                continue
-            
-            # 첫 번째와 두 번째 열이 모두 숫자인지 확인
+            if len(parts) < 2: continue
             try:
                 float(parts[0])
                 float(parts[1])
-                # 둘 다 숫자면 데이터 시작
                 data_start_idx = i
                 break
             except ValueError:
-                # 숫자가 아니면 계속 찾기
                 continue
         
         # 데이터 부분만 추출
-        data_lines = []
-        for i in range(data_start_idx, len(all_lines)):
-            line = all_lines[i].strip()
-            if line:  # 빈 줄이 아닌 경우만 추가
-                data_lines.append(line)
-        
-        # StringIO를 사용하여 np.loadtxt에 전달
+        data_lines = [all_lines[i].strip() for i in range(data_start_idx, len(all_lines)) if all_lines[i].strip()]
         data_string = '\n'.join(data_lines)
         
         if file_ext == '.csv':
-            # CSV 파일인 경우 쉼표 구분자 사용
             raw = np.loadtxt(StringIO(data_string), delimiter=',')
         else:
-            # 기본적으로 공백/탭 구분자 사용 (.txt, .dat 등)
             raw = np.loadtxt(StringIO(data_string))
         
         # Extract filename without extension
         name = os.path.splitext(os.path.basename(filename))[0]
+        
+        return self._process_core(raw, name, T, min_energy, max_energy, auto_range, baseline_select)
+
+    def process_data_with_points(self, xdata, ydata, baseline_points, fitmode, name="data", auto_range=None):
+        """
+        Process data directly with given points (Web Interface)
+        """
+        original_fitmode = self.fitmode
+        self.fitmode = fitmode
+        
+        try:
+            xdata = np.array(xdata)
+            ydata = np.array(ydata)
+            
+            # Reconstruct raw-like structure (N x 2)
+            # Col 0: Wavelength (nm), Col 1: Absorption
+            # xdata is eV. xdata_original = 1239.84193 / xdata
+            with np.errstate(divide='ignore'):
+                xdata_original = 1239.84193 / xdata
+            
+            raw = np.column_stack((xdata_original, ydata))
+            
+            # Set web masks based on points
+            if fitmode == 0:
+                if len(baseline_points) != 2:
+                    raise ValueError("fitmode=0 requires 2 points.")
+                fit_min, fit_max = sorted(baseline_points)
+                self._web_fit_mask = (xdata >= fit_min) & (xdata <= fit_max)
+                self._web_baseline_mask = None
+            else:
+                if len(baseline_points) != 3:
+                    raise ValueError("fitmode!=0 requires 3 points.")
+                x1, x2, x3 = baseline_points
+                baseline_min, baseline_max = sorted([x1, x2])
+                fit_min, fit_max = sorted([x1, x3])
+                self._web_baseline_mask = (xdata >= baseline_min) & (xdata <= baseline_max)
+                self._web_fit_mask = (xdata >= fit_min) & (xdata <= fit_max)
+            
+            # Call core logic
+            # T=[0] because raw has 2 columns (wavelength, data), so dataset index 1 is target (0-indexed T -> 0)
+            return self._process_core(
+                raw=raw, 
+                name=name, 
+                T=[0], 
+                min_energy=fit_min, 
+                max_energy=fit_max, 
+                auto_range=auto_range, 
+                baseline_select=True
+            )
+            
+        finally:
+            self.fitmode = original_fitmode
+            # Clean up masks
+            if hasattr(self, '_web_baseline_mask'): delattr(self, '_web_baseline_mask')
+            if hasattr(self, '_web_fit_mask'): delattr(self, '_web_fit_mask')
+
+    def _process_core(self, raw, name, T=None, min_energy=None, max_energy=None, auto_range=None, baseline_select=True):
+        """
+        Core processing logic
+        """
         
         data_size = raw.shape
         xdata_original = raw[:, 0].copy()  # 원본 데이터 저장 (nm 단위)

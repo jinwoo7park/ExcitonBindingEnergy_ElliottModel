@@ -9,3 +9,5 @@ services:
         value: https://elliott-model.vercel.app,http://localhost:3000,http://localhost:5173
     healthCheckPath: /api/health
 
+
+

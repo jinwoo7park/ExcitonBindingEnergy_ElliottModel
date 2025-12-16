@@ -6,7 +6,7 @@ echo "🚀 Starting ExcitonBindingEnergy_ElliottModel services..."
 
 # 백엔드 실행 (백그라운드)
 echo "📡 Starting FastAPI backend on port 8000..."
-python3 api.py &
+python3 api/index.py &
 BACKEND_PID=$!
 
 # 잠시 대기

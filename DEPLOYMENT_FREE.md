@@ -167,3 +167,5 @@
 - 백엔드의 `ALLOWED_ORIGINS`에 프론트엔드 URL 포함 확인
 - Vercel URL: `https://elliott-model.vercel.app`
 
+
+

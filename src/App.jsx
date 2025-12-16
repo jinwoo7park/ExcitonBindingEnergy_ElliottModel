@@ -80,7 +80,7 @@ function App() {
       let errorMessage = '파일 업로드 중 오류가 발생했습니다.'
 
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
-        errorMessage = '백엔드 서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인하세요.\n\n터미널에서 다음 명령어로 백엔드 서버를 실행하세요:\npython3 api.py'
+        errorMessage = '백엔드 서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인하세요.\n\n터미널에서 다음 명령어로 백엔드 서버를 실행하세요:\npython3 api/index.py'
       } else if (err.response?.data?.detail) {
         errorMessage = err.response.data.detail
       } else if (err.message) {
@@ -152,8 +152,11 @@ function App() {
 
       console.log('Sending bounds:', boundsToSend)
 
+      // Stateless 방식: 데이터(xdata, ydata)를 직접 전송
       const response = await axios.post(`${API_BASE_URL}/api/analyze`, {
         filename: previewData.filename,
+        xdata: previewData.xdata,
+        ydata: previewData.ydata,
         fitmode: fitmode,
         baseline_points: selectedPoints,
         initial_values: initialValues,
@@ -168,7 +171,7 @@ function App() {
       let errorMessage = '분석 중 오류가 발생했습니다.'
 
       if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
-        errorMessage = '백엔드 서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인하세요.\n\n터미널에서 다음 명령어로 백엔드 서버를 실행하세요:\npython3 api.py'
+        errorMessage = '백엔드 서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인하세요.\n\n터미널에서 다음 명령어로 백엔드 서버를 실행하세요:\npython3 api/index.py'
       } else if (err.response?.data?.detail) {
         errorMessage = err.response.data.detail
       } else if (err.message) {
@@ -219,8 +222,30 @@ function App() {
     }
   }
 
-  const downloadFile = (filename) => {
-    window.open(`${API_BASE_URL}/api/download/${filename}`, '_blank')
+  const downloadContent = (content, filename, mimeType) => {
+    if (!content) return;
+
+    // Base64 데이터인 경우 (이미지, pdf 등)
+    if (content.startsWith('data:')) {
+      const link = document.createElement('a');
+      link.href = content;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    // 텍스트 데이터인 경우 (csv)
+    const blob = new Blob([content], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   }
 
   const resetSelection = () => {
@@ -264,8 +289,8 @@ function App() {
           y0: yMin,
           x1: Math.max(x1, x2),
           y1: yMax,
-          fillcolor: 'rgba(0, 128, 0, 0.1)',
-          line: { width: 0 }
+          line: { width: 0 },
+          fillcolor: 'rgba(0, 128, 0, 0.1)'
         })
       }
     } else {
@@ -280,8 +305,8 @@ function App() {
           y0: yMin,
           x1: Math.max(x1, x2),
           y1: yMax,
-          fillcolor: 'rgba(255, 165, 0, 0.1)',
-          line: { width: 0 }
+          line: { width: 0 },
+          fillcolor: 'rgba(255, 165, 0, 0.1)'
         })
       }
 
@@ -295,8 +320,8 @@ function App() {
           y0: yMin,
           x1: Math.max(x1, x3),
           y1: yMax,
-          fillcolor: 'rgba(0, 128, 0, 0.1)',
-          line: { width: 0 }
+          line: { width: 0 },
+          fillcolor: 'rgba(0, 128, 0, 0.1)'
         })
       }
     }
@@ -604,6 +629,16 @@ function App() {
           <div className="results">
             <h2>분석 결과</h2>
 
+            {results.plot_image && (
+                <div className="result-image" style={{ marginBottom: '20px', textAlign: 'center' }}>
+                    <img 
+                        src={results.plot_image} 
+                        alt="Fitting Result" 
+                        style={{ maxWidth: '100%', border: '1px solid #ddd', borderRadius: '4px' }}
+                    />
+                </div>
+            )}
+
             <div className="parameters">
               <h3>Fitting 파라미터</h3>
               <div className="param-grid">
@@ -662,13 +697,13 @@ function App() {
               <h3>다운로드</h3>
               <div className="download-buttons">
                 <button
-                  onClick={() => downloadFile(results.results_file.split('/').pop())}
+                  onClick={() => downloadContent(results.csv_content, `0_${results.name}_Results.csv`, 'text/csv;charset=utf-8;')}
                   className="btn btn-download"
                 >
                   결과 CSV 다운로드
                 </button>
                 <button
-                  onClick={() => downloadFile(results.plot_file.split('/').pop())}
+                  onClick={() => downloadContent(results.pdf_content, `0_${results.name}.pdf`, 'application/pdf')}
                   className="btn btn-download"
                 >
                   그래프 PDF 다운로드
