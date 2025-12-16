@@ -27,9 +27,10 @@ VITE_API_BASE_URL=https://web-production-af7d7.up.railway.app
 ### 2. 빌드 확인
 
 Vercel은 이제 프론트엔드만 빌드하므로:
-- Python 패키지 설치하지 않음
+- Python 패키지 설치하지 않음 (`api/` 폴더와 `requirements.txt` 제외됨)
 - 서버리스 함수 생성하지 않음
 - `dist/` 폴더만 배포
+- `.vercelignore`에 `api/` 폴더와 `requirements.txt`가 명시적으로 제외되어 있음
 
 ## Railway 설정
 
