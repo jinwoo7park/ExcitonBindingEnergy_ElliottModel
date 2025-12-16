@@ -89,8 +89,18 @@ ENV/
 matplotlib/fontList.*
 matplotlib/tex.cache/
 
-# Scipy 테스트 데이터 (선택적)
-# scipy.io.tests/data/  # 필요시 주석 해제
+# Scipy 테스트 데이터 및 불필요한 모듈 제외
+scipy/io/tests/data/
+scipy/datasets/
+scipy/sparse/linalg/_dsolve/tests/
+scipy/sparse/linalg/_eigen/tests/
+scipy/sparse/tests/
+scipy/integrate/tests/
+scipy/interpolate/tests/
+scipy/optimize/tests/
+scipy/linalg/tests/
+scipy/special/tests/
+scipy/stats/tests/
 
 # Jupyter 노트북
 *.ipynb
