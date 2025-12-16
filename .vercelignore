@@ -1,7 +1,7 @@
 # Node.js dependencies (프론트엔드 빌드에만 필요)
 node_modules/
 .pnpm-store/
-pnpm-lock.yaml
+# pnpm-lock.yaml은 Vercel에서 필요하므로 제외하지 않음
 
 # Git
 .git/

@@ -2,8 +2,9 @@
   "buildCommand": "pnpm build",
   "outputDirectory": "dist",
   "devCommand": "pnpm dev",
-  "installCommand": "pnpm install",
+  "installCommand": "pnpm install --no-frozen-lockfile",
   "framework": "vite",
+  "nodeVersion": "20.x",
   "functions": {
     "api/**/*.py": {
       "maxDuration": 30
