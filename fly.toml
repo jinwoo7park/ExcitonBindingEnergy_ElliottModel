@@ -18,6 +18,10 @@ primary_region = "icn"  # 서울 리전 (한국), 다른 리전: nrt(도쿄), si
   auto_start_machines = true
   min_machines_running = 0
   processes = ["app"]
+  
+  # 자동 중지 설정: 비활성 시 즉시 중지
+  # auto_stop_machines = true: 요청이 없으면 자동으로 머신 중지
+  # min_machines_running = 0: 최소 실행 머신 수 0 (모두 중지 가능)
 
   [[http_service.checks]]
     grace_period = "10s"
