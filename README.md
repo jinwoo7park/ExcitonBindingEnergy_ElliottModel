@@ -213,9 +213,24 @@ fitter.plot_results(results, save_path='results.pdf')
 - **R² > 0.95**: 좋은 피팅
 - **R² < 0.90**: 피팅 개선 필요 (baseline 선택, 범위 조정 등)
 
-## 🌐 배포 (Fly.io)
+## 🌐 배포
 
-Fly.io로 배포하는 방법:
+### Vercel 배포 (프론트엔드)
+
+1. **Vercel 대시보드에서 배포**
+   - https://vercel.com 접속
+   - GitHub 저장소 연결
+   - 프로젝트 import
+
+2. **환경 변수 설정**
+   - Settings > Environment Variables
+   - `VITE_API_BASE_URL` 추가 (백엔드 API URL)
+   - 예: `https://your-backend.fly.dev` 또는 `http://localhost:8000` (로컬)
+
+3. **자동 배포**
+   - Git push 시 자동 배포
+
+### Fly.io 배포 (백엔드)
 
 1. **Fly.io CLI 설치 및 로그인**
    ```bash
@@ -225,10 +240,11 @@ Fly.io로 배포하는 방법:
 
 2. **배포**
    ```bash
-   fly deploy --app your-app-name
+   fly deploy --app your-backend-name
    ```
 
-배포 URL: `https://your-app-name.fly.dev`
+3. **Vercel 환경 변수에 백엔드 URL 추가**
+   - `VITE_API_BASE_URL=https://your-backend-name.fly.dev`
 
 ## 🛠️ 문제 해결
 
