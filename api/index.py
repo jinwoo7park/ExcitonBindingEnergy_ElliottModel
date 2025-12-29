@@ -395,7 +395,7 @@ async def analyze_data(request: AnalyzeRequest):
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "mode": "serverless"}
+    return {"status": "ok", "mode": "container"}
 
 # 정적 파일 서빙 (모든 API 엔드포인트 정의 후 마운트)
 print(f"🔍 Searching for dist folder...")
