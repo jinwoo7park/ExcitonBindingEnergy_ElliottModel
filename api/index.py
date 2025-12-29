@@ -5,8 +5,11 @@ ExcitonBindingEnergy_ElliottModel - Exciton binding energy calculation using Ell
 import sys
 import os
 
-# Add current directory to sys.path to ensure local imports work
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to sys.path to ensure local imports work
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_parent_dir = os.path.dirname(_current_dir)
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,8 +27,8 @@ matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 from mangum import Mangum
 
-# Import from local module
-from .fitter import FSumFitter
+# Import from local module (절대 import로 변경)
+from api.fitter import FSumFitter
 
 app = FastAPI(title="Exciton Binding Energy Calculator API")
 
