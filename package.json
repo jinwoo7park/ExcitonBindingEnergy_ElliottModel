@@ -10,6 +10,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:backend": "python3 -m uvicorn api.index:app --reload --host 0.0.0.0 --port 8000",
+    "dev:all": "concurrently \"pnpm run dev:backend\" \"pnpm run dev\" --names \"backend,frontend\" --prefix-colors \"blue,green\"",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -24,6 +26,7 @@
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
     "vite": "^5.0.8"
   }
 }

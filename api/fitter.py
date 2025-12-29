@@ -560,13 +560,14 @@ class FSumFitter:
             # raw has 2 columns (wavelength=0, data=1)
             # dataset index 1 (1-indexed) -> T=[1] -> _process_core converts to [0] (0-indexed)
             # Loop: for i in range(1, data_size[1]) -> i=1, check (i-1)=0 in T=[0] -> process dataset 1
+            # 웹 인터페이스에서 사용자가 명시적으로 선택한 범위를 사용하므로 auto_range를 False로 설정
             return self._process_core(
                 raw=raw, 
                 name=name, 
                 T=[1],  # 1-indexed: dataset index 1 (second column)
                 min_energy=fit_min, 
                 max_energy=fit_max, 
-                auto_range=auto_range, 
+                auto_range=False,  # 사용자가 선택한 범위를 그대로 사용
                 baseline_select=True
             )
             
@@ -788,7 +789,8 @@ class FSumFitter:
             
             # --- Auto Range Refinement: Use Eg ± 0.5 eV for final fitting (unless disabled) ---
             # This ensures focus on bandgap region and reduces high-energy overestimation
-            if auto_range is not False:  # Default (None) or True: enable bandgap-focused fitting
+            # 사용자가 명시적으로 선택한 범위(user_fit_mask)가 있으면 auto_range를 무시
+            if auto_range is not False and user_fit_mask is None:  # 사용자 선택 범위가 없을 때만 auto_range 적용
                 approx_Eg = estimates[0]
                 
                 # Define range: Eg - 0.5 eV ~ Eg + 0.5 eV
@@ -818,6 +820,8 @@ class FSumFitter:
                     fit_mask = auto_mask
                 else:
                     print(f"   ⚠️ Bandgap-focused range resulted in too few points ({np.sum(auto_mask)}). Using original range.")
+            elif user_fit_mask is not None:
+                print(f"   ✅ 사용자가 선택한 피팅 범위를 사용합니다: {np.min(xdata[fit_mask]):.3f} - {np.max(xdata[fit_mask]):.3f} eV")
             # -----------------------------
 
             self.start_point = estimates.copy()  # Use previous result as new start point
