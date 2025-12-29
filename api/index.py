@@ -34,10 +34,11 @@ allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 if allowed_origins_env:
     allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
 else:
-    # 기본값: 로컬 개발 환경 (Fly.io 단일 배포 시 CORS 불필요 - 같은 도메인)
+    # 기본값: 로컬 개발 환경 및 Vercel 배포
     allowed_origins = [
         "http://localhost:3000",
         "http://localhost:5173",
+        "https://*.vercel.app",  # 모든 Vercel 배포 URL 허용
     ]
 
 app.add_middleware(
