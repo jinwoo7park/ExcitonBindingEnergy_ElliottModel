@@ -1,0 +1,25 @@
+# Backend API (deployed to Fly.io, not Vercel)
+api/
+requirements.txt
+*.py
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Python dependencies
+*.egg-info/
+dist/
+build/
+
+# Node modules (already ignored by default, but explicit)
+node_modules/
+
+# Lock files (keep pnpm-lock.yaml for frontend)
+# requirements.txt is for backend only
+
