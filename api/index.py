@@ -35,16 +35,25 @@ if allowed_origins_env:
     allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
 else:
     # 기본값: 로컬 개발 환경 및 Vercel 배포
+    # FastAPI는 와일드카드를 직접 지원하지 않으므로 모든 도메인 허용으로 설정
     allowed_origins = [
         "http://localhost:3000",
         "http://localhost:5173",
-        "https://*.vercel.app",  # 모든 Vercel 배포 URL 허용
     ]
+    # Vercel URL 자동 감지
+    vercel_url = os.getenv("VERCEL_URL")
+    if vercel_url:
+        allowed_origins.append(f"https://{vercel_url}")
+    
+    # 모든 도메인 허용 (개발 단계)
+    # allow_credentials와 함께 사용할 수 없으므로 False로 설정
+    if "*" not in allowed_origins:
+        allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_origins=allowed_origins if allowed_origins != ["*"] else ["*"],
+    allow_credentials=False if "*" in allowed_origins else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
