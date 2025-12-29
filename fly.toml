@@ -1,0 +1,33 @@
+# Fly.io 배포 설정 파일
+# https://fly.io/docs/reference/configuration/
+
+app = "excitonbindingenergy-elliottmodel"
+primary_region = "icn"  # 서울 리전 (한국), 다른 리전: nrt(도쿄), sin(싱가포르), hkg(홍콩) 등
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  PYTHONUNBUFFERED = "1"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/api/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+

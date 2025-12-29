@@ -18,7 +18,7 @@ export default defineConfig({
     },
   },
   // 개발 서버 설정은 로컬 개발 환경에서만 사용
-  // Railway에서는 백엔드가 정적 파일을 서빙하므로 프록시 불필요
+  // Fly.io 단일 배포 시 백엔드가 정적 파일을 서빙하므로 프록시 불필요
   server: process.env.NODE_ENV === 'development' ? {
     host: '0.0.0.0',
     port: 3000,

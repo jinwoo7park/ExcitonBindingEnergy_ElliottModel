@@ -34,17 +34,11 @@ allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 if allowed_origins_env:
     allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
 else:
-    # 기본값: 로컬 개발 및 Vercel 배포 URL
+    # 기본값: 로컬 개발 환경 (Fly.io 단일 배포 시 CORS 불필요 - 같은 도메인)
     allowed_origins = [
         "http://localhost:3000",
         "http://localhost:5173",
-        "https://elliott-model.vercel.app",
-        "https://*.vercel.app"  # 모든 Vercel 배포 URL 허용
     ]
-    # Vercel 배포 URL 자동 감지
-    vercel_url = os.getenv("VERCEL_URL")
-    if vercel_url:
-        allowed_origins.append(f"https://{vercel_url}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,7 +69,7 @@ for path in _possible_dist_paths:
 if dist_path is None:
     dist_path = os.path.join(_working_dir, "dist")  # 기본값
 
-# 임시 파일 저장 디렉토리 (Vercel 환경에서는 /tmp만 쓰기 가능)
+# 임시 파일 저장 디렉토리
 TEMP_DIR = tempfile.mkdtemp(prefix="fsum_fitting_")
 
 class InitialValues(BaseModel):
@@ -420,7 +414,7 @@ else:
     print(f"   Working dir contents: {os.listdir(_working_dir) if os.path.exists(_working_dir) else 'N/A'}")
     print(f"   Base dir contents: {os.listdir(_base_dir) if os.path.exists(_base_dir) else 'N/A'}")
 
-# Vercel serverless function handler
+# Serverless function handler (Vercel 등에서 사용 시)
 handler = Mangum(app, lifespan="off")
 
 # Local development support

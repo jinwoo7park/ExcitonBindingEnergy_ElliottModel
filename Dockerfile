@@ -24,11 +24,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install || pnpm install --no-frozen-lockfile
 
-# 나머지 파일 복사
+# 나머지 파일 복사 (프론트엔드 소스 포함)
 COPY . .
 
-# 포트 노출
-EXPOSE 8000 3000
+# 프론트엔드 빌드
+RUN pnpm build
 
-# 기본 명령어 (docker-compose에서 override됨)
-CMD ["python3", "-m", "api.index"]
+# 포트 노출 (Fly.io는 8080 사용, 환경 변수로 제어)
+EXPOSE 8080
+
+# 기본 명령어
+# PORT 환경 변수를 사용하여 uvicorn 실행
+CMD ["sh", "-c", "uvicorn api.index:app --host 0.0.0.0 --port ${PORT:-8080}"]
