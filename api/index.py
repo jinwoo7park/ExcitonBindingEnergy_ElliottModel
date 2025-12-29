@@ -49,17 +49,14 @@ app.add_middleware(
 )
 
 # 정적 파일 서빙 (프로덕션 모드 - API 엔드포인트보다 먼저 마운트하면 안됨)
-# Railway나 일반 배포 환경에서는 프론트엔드 빌드 파일을 서빙
 # 주의: API 엔드포인트 정의 후에 마운트해야 함
 # 경로 계산: api/index.py의 상위 디렉토리(dist 폴더 위치)
 _base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# Railway에서는 작업 디렉토리가 루트이므로, 현재 작업 디렉토리도 확인
 _working_dir = os.getcwd()
-# 여러 가능한 경로 확인 (Railway 환경 고려)
+# 여러 가능한 경로 확인
 _possible_dist_paths = [
-    os.path.join(_working_dir, "dist"),  # 현재 작업 디렉토리 (Railway 기본)
+    os.path.join(_working_dir, "dist"),  # 현재 작업 디렉토리
     os.path.join(_base_dir, "dist"),      # api 폴더의 상위 디렉토리
-    os.path.join("/workspace", "dist"),   # Railway의 일반적인 작업 디렉토리
 ]
 dist_path = None
 for path in _possible_dist_paths:
@@ -391,7 +388,6 @@ async def health_check():
     return {"status": "ok", "mode": "serverless"}
 
 # 정적 파일 서빙 (모든 API 엔드포인트 정의 후 마운트)
-# Railway나 일반 배포 환경에서는 프론트엔드 빌드 파일을 서빙
 print(f"🔍 Searching for dist folder...")
 print(f"   Base dir: {_base_dir}")
 print(f"   Working dir: {_working_dir}")

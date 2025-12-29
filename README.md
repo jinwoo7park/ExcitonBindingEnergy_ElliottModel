@@ -213,24 +213,22 @@ fitter.plot_results(results, save_path='results.pdf')
 - **R² > 0.95**: 좋은 피팅
 - **R² < 0.90**: 피팅 개선 필요 (baseline 선택, 범위 조정 등)
 
-## 🌐 배포 가이드
+## 🌐 배포 (Fly.io)
 
-**상세한 배포 방법**: [DEPLOYMENT.md](DEPLOYMENT.md) 참고
+Fly.io로 배포하는 방법:
 
-### 빠른 요약
+1. **Fly.io CLI 설치 및 로그인**
+   ```bash
+   curl -L https://fly.io/install.sh | sh
+   fly auth login
+   ```
 
-**단일 배포 (추천)** - 프론트엔드와 백엔드를 함께 배포:
-- **Fly.io** (추천): 무료 티어 제공, 전 세계 CDN, 빠른 배포
-  - 상세 가이드: [FLY_IO_DEPLOYMENT.md](FLY_IO_DEPLOYMENT.md)
-- **Railway**: 월 $5 무료 크레딧, 빠르고 안정적
-- **Render**: 완전 무료, 15분 비활성 시 sleep
+2. **배포**
+   ```bash
+   fly deploy --app your-app-name
+   ```
 
-**장점**:
-- ✅ CORS 설정 불필요 (같은 도메인)
-- ✅ 환경 변수 설정 간단
-- ✅ 하나의 서비스로 관리
-
-자세한 내용은 [DEPLOYMENT.md](DEPLOYMENT.md)를 참고하세요.
+배포 URL: `https://your-app-name.fly.dev`
 
 ## 🛠️ 문제 해결
 
@@ -290,10 +288,6 @@ npm install -g pnpm
 
 ## 📚 추가 자료
 
-- [CODE_EXPLANATION.md](CODE_EXPLANATION.md): 상세한 코드 설명 및 과학적 배경
-- [README_WEB.md](README_WEB.md): 웹 인터페이스 상세 가이드
-- [DEPLOYMENT.md](DEPLOYMENT.md): 배포 가이드 (Fly.io, Railway, Render)
-- [FLY_IO_DEPLOYMENT.md](FLY_IO_DEPLOYMENT.md): Fly.io 배포 상세 가이드
 
 ## 📖 참고 문헌
 
