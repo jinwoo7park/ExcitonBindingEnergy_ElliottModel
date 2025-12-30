@@ -61,7 +61,7 @@ class FSumFitter:
         NS : int
             Number of datapoints for spline interpolation
         fitmode : int
-            0 = no baseline (baseline = 0), 1 = linear baseline, 2 = Rayleigh scattering baseline (E^4)
+            0 = no baseline (baseline = 0), 1 = linear baseline, 2 = Solution Rayleigh scattering baseline (E^4), 3 = Thin film Rayleigh scattering baseline (E^2)
         """
         self.deltaE = deltaE
         self.NS = NS
@@ -116,7 +116,7 @@ class FSumFitter:
             baseline = np.polyval(coeffs, xdata)
             return baseline, baseline_mask
         elif self.fitmode == 2:
-            # Rayleigh scattering: y = c * E^4 + constant
+            # Solution Rayleigh scattering: y = c * E^4 + constant
             # Fit coefficients using least squares (1차항 제거)
             E_fit = x_fit
             E4_fit = x_fit ** 4
@@ -132,6 +132,24 @@ class FSumFitter:
             
             # Generate baseline for full range: baseline = c * E^4 + constant
             baseline = c_coeff * (xdata ** 4) + constant
+            return baseline, baseline_mask
+        elif self.fitmode == 3:
+            # Thin film Rayleigh scattering: y = b * E^2 + constant
+            # Fit coefficients using least squares
+            E_fit = x_fit
+            E2_fit = x_fit ** 2
+            
+            # Create design matrix: [E^2, 1]
+            A = np.column_stack([E2_fit, np.ones(len(E_fit))])
+            
+            # Solve least squares: A * [b, constant]^T = y_fit
+            coeffs, residuals, rank, s = np.linalg.lstsq(A, y_fit, rcond=None)
+            
+            # Extract coefficients
+            b_coeff, constant = coeffs[0], coeffs[1]
+            
+            # Generate baseline for full range: baseline = b * E^2 + constant
+            baseline = b_coeff * (xdata ** 2) + constant
             return baseline, baseline_mask
         else:
             raise ValueError(f"Fitmode {self.fitmode} not implemented")
@@ -650,7 +668,7 @@ class FSumFitter:
                 elif not baseline_select:
                     raise ValueError("baseline_select=False 이고 fitmode!=0 입니다. 자동 baseline은 제거되었으므로 baseline_select=True로 실행하세요.")
                 else:
-                    baseline_mode_name = {1: 'Linear', 2: 'Rayleigh scattering (E^4)'}.get(self.fitmode, f'Mode {self.fitmode}')
+                    baseline_mode_name = {1: 'Linear', 2: 'Solution Rayleigh scattering (E^4)', 3: 'Thin film Rayleigh scattering (E^2)'}.get(self.fitmode, f'Mode {self.fitmode}')
                     print(f'   🖱️ Step 0 baseline 구간과 피팅 범위를 그래프에서 선택하세요 ({baseline_mode_name})...')
                     result = self.select_baseline_mask_interactive(
                         xdata,

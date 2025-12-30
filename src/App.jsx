@@ -47,7 +47,7 @@ function App() {
     if (selectedFile) {
       const fileName = selectedFile.name.toLowerCase()
       const isCSV = fileName.endsWith('.csv')
-      
+
       if (!isCSV) {
         setError('CSV 파일을 선택해주세요.')
         e.target.value = '' // 파일 선택 초기화
@@ -60,7 +60,7 @@ function App() {
       setFile(null)
       setError(null)
     }
-    
+
     setResults(null)
     setPreviewData(null)
     setSelectedPoints([])
@@ -255,7 +255,7 @@ function App() {
           }
           const blob = new Blob([bytes], { type: 'application/pdf' });
           const blobUrl = window.URL.createObjectURL(blob);
-          
+
           const newWindow = window.open(blobUrl, '_blank');
           if (newWindow) {
             // 새 창이 닫힌 후 URL 해제
@@ -432,7 +432,8 @@ function App() {
             >
               <option value="0">0 - No baseline</option>
               <option value="1">1 - Linear baseline</option>
-              <option value="2">2 - Rayleigh scattering (E^4)</option>
+              <option value="2">2 - Solution Rayleigh scattering (E^4)</option>
+              <option value="3">3 - Thin film Rayleigh scattering (E^2)</option>
             </select>
           </div>
 
