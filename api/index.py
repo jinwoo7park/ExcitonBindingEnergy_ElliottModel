@@ -325,6 +325,12 @@ async def analyze_data(request: AnalyzeRequest):
         
         Eb_actual = Eb / ((1.0 - q)**2) if abs(1.0 - q) > 1e-5 else Eb
         
+        # Baseline parameters 확인 (fitmode 4의 p값 등)
+        baseline_params = results.get('baseline_params', [])
+        p_value = None
+        if baseline_params and len(baseline_params) > 0 and baseline_params[0] is not None:
+            p_value = baseline_params[0].get('p')
+        
         # 결과 파일 생성 (메모리에서)
         # 1. CSV
         # save_results는 파일로 저장함. 내용을 캡처하거나 별도 로직 구현 필요.
@@ -366,18 +372,23 @@ async def analyze_data(request: AnalyzeRequest):
             with open(plot_path, 'rb') as f:
                 pdf_base64 = base64.b64encode(f.read()).decode('utf-8')
 
+        parameters_dict = {
+            "Eg": Eg,
+            "Eb_Rydberg": Eb * 1000.0,
+            "Eb_GroundState": Eb_actual * 1000.0,
+            "Gamma": Gamma * 1000.0,
+            "ucvsq": float(fit_params[3]),
+            "mhcnp": float(fit_params[4]),
+            "q": q,
+        }
+        # fitmode 4일 때만 p값 추가
+        if request.fitmode == 4 and p_value is not None:
+            parameters_dict["baseline_p"] = float(p_value)
+        
         return {
             "success": True,
             "name": results['name'],
-            "parameters": {
-                "Eg": Eg,
-                "Eb_Rydberg": Eb * 1000.0,
-                "Eb_GroundState": Eb_actual * 1000.0,
-                "Gamma": Gamma * 1000.0,
-                "ucvsq": float(fit_params[3]),
-                "mhcnp": float(fit_params[4]),
-                "q": q,
-            },
+            "parameters": parameters_dict,
             "quality": float(quality),
             "boundary_warnings": boundary_warnings,
             "q_warning": q_warning,

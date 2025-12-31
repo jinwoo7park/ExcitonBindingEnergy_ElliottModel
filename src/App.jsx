@@ -434,6 +434,7 @@ function App() {
               <option value="1">1 - Linear baseline</option>
               <option value="2">2 - Solution Rayleigh scattering (E^4)</option>
               <option value="3">3 - Thin film Rayleigh scattering (E^2)</option>
+              <option value="4">4 - Unknown scattering (E^p)</option>
             </select>
           </div>
 

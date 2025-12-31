@@ -61,7 +61,7 @@ class FSumFitter:
         NS : int
             Number of datapoints for spline interpolation
         fitmode : int
-            0 = no baseline (baseline = 0), 1 = linear baseline, 2 = Solution Rayleigh scattering baseline (E^4), 3 = Thin film Rayleigh scattering baseline (E^2)
+            0 = no baseline (baseline = 0), 1 = linear baseline, 2 = Solution Rayleigh scattering baseline (E^4), 3 = Thin film Rayleigh scattering baseline (E^2), 4 = Unknown scattering baseline (E^p, p fitted)
         """
         self.deltaE = deltaE
         self.NS = NS
@@ -96,9 +96,11 @@ class FSumFitter:
             Baseline values
         baseline_mask : array (bool)
             The same mask used for baseline fitting
+        baseline_params : dict or None
+            Additional baseline parameters (e.g., {'p': p_value} for fitmode 4), None for other modes
         """
         if self.fitmode == 0:
-            return np.zeros(len(xdata)), np.zeros(len(xdata), dtype=bool)
+            return np.zeros(len(xdata)), np.zeros(len(xdata), dtype=bool), None
 
         baseline_mask = np.asarray(baseline_mask, dtype=bool)
         if baseline_mask.shape != (len(xdata),):
@@ -108,13 +110,13 @@ class FSumFitter:
         y_fit = ydata[baseline_mask]
         
         if len(x_fit) < 2:
-            return np.zeros(len(xdata)), baseline_mask
+            return np.zeros(len(xdata)), baseline_mask, None
         
         if self.fitmode == 1:
             # Linear fit
             coeffs = np.polyfit(x_fit, y_fit, 1)
             baseline = np.polyval(coeffs, xdata)
-            return baseline, baseline_mask
+            return baseline, baseline_mask, None
         elif self.fitmode == 2:
             # Solution Rayleigh scattering: y = c * E^4 + constant
             # Fit coefficients using least squares (1차항 제거)
@@ -132,7 +134,7 @@ class FSumFitter:
             
             # Generate baseline for full range: baseline = c * E^4 + constant
             baseline = c_coeff * (xdata ** 4) + constant
-            return baseline, baseline_mask
+            return baseline, baseline_mask, None
         elif self.fitmode == 3:
             # Thin film Rayleigh scattering: y = b * E^2 + constant
             # Fit coefficients using least squares
@@ -150,7 +152,48 @@ class FSumFitter:
             
             # Generate baseline for full range: baseline = b * E^2 + constant
             baseline = b_coeff * (xdata ** 2) + constant
-            return baseline, baseline_mask
+            return baseline, baseline_mask, None
+        elif self.fitmode == 4:
+            # Unknown scattering: y = constant + b * E^p (p is also fitted)
+            # Use curve_fit for nonlinear fitting
+            
+            def baseline_func(E, constant, b, p):
+                """Baseline function: constant + b * E^p"""
+                # Avoid negative energies to prevent issues with fractional powers
+                E_safe = np.maximum(E, 1e-10)
+                return constant + b * (E_safe ** p)
+            
+            # Initial guess: reasonable values
+            # constant: mean of y_fit
+            # b: small positive value
+            # p: start with p=3
+            initial_guess = [np.mean(y_fit), 1e-6, 3.0]
+            
+            # Bounds: constant can be negative, b should be positive, p should be in [0, 4]
+            # p bounds: [0, 4]
+            bounds = ([-np.inf, 0, 0], [np.inf, np.inf, 4.0])
+            
+            try:
+                popt, _ = curve_fit(
+                    baseline_func,
+                    x_fit,
+                    y_fit,
+                    p0=initial_guess,
+                    bounds=bounds,
+                    maxfev=5000
+                )
+                constant, b, p = popt
+                
+                # Generate baseline for full range
+                baseline = baseline_func(xdata, constant, b, p)
+                baseline_params = {'p': float(p)}
+                return baseline, baseline_mask, baseline_params
+            except Exception as e:
+                # If fitting fails, fall back to linear baseline
+                print(f"Warning: fitmode 4 fitting failed ({e}), falling back to linear baseline")
+                coeffs = np.polyfit(x_fit, y_fit, 1)
+                baseline = np.polyval(coeffs, xdata)
+                return baseline, baseline_mask, None
         else:
             raise ValueError(f"Fitmode {self.fitmode} not implemented")
 
@@ -629,6 +672,7 @@ class FSumFitter:
         processed_T = []  # 실제로 처리된 데이터셋 인덱스 저장
         fit_masks = []  # 각 데이터셋의 피팅 범위 마스크 저장
         baseline_masks = []  # 각 데이터셋의 baseline 계산 범위 마스크 저장
+        baseline_params_list = []  # 각 데이터셋의 baseline 파라미터 저장 (fitmode 4의 p값 등)
         
         # Process each dataset
         for i in range(1, data_size[1]):
@@ -658,17 +702,18 @@ class FSumFitter:
                     _, user_fit_mask = result  # For fitmode=0, baseline_mask is None
                 baseline = np.zeros(len(xdata))
                 baseline_mask = np.zeros(len(xdata), dtype=bool)
+                baseline_params = None
             else:
                 # 웹 인터페이스를 위해 클릭 좌표를 직접 받을 수 있도록 수정
                 if hasattr(self, '_web_baseline_mask') and hasattr(self, '_web_fit_mask'):
                     # 웹에서 전달된 마스크 사용
                     user_baseline_mask = self._web_baseline_mask
                     user_fit_mask = self._web_fit_mask
-                    baseline, baseline_mask = self.fit_baseline(xdata, raw[:, i], baseline_mask=user_baseline_mask)
+                    baseline, baseline_mask, baseline_params = self.fit_baseline(xdata, raw[:, i], baseline_mask=user_baseline_mask)
                 elif not baseline_select:
                     raise ValueError("baseline_select=False 이고 fitmode!=0 입니다. 자동 baseline은 제거되었으므로 baseline_select=True로 실행하세요.")
                 else:
-                    baseline_mode_name = {1: 'Linear', 2: 'Solution Rayleigh scattering (E^4)', 3: 'Thin film Rayleigh scattering (E^2)'}.get(self.fitmode, f'Mode {self.fitmode}')
+                    baseline_mode_name = {1: 'Linear', 2: 'Solution Rayleigh scattering (E^4)', 3: 'Thin film Rayleigh scattering (E^2)', 4: 'Unknown scattering (E^p)'}.get(self.fitmode, f'Mode {self.fitmode}')
                     print(f'   🖱️ Step 0 baseline 구간과 피팅 범위를 그래프에서 선택하세요 ({baseline_mode_name})...')
                     result = self.select_baseline_mask_interactive(
                         xdata,
@@ -679,7 +724,7 @@ class FSumFitter:
                     if result is None:
                         raise ValueError("Baseline 구간 선택이 취소되었거나 구간이 너무 짧습니다. (자동 baseline은 제거됨)")
                     user_baseline_mask, user_fit_mask = result
-                    baseline, baseline_mask = self.fit_baseline(xdata, raw[:, i], baseline_mask=user_baseline_mask)
+                    baseline, baseline_mask, baseline_params = self.fit_baseline(xdata, raw[:, i], baseline_mask=user_baseline_mask)
             
             # Step 1: Find bandgap from cleaned data
             # 사용자가 제공한 initial_Eg를 우선 사용 (데이터 범위 내에 있으면)
@@ -870,6 +915,7 @@ class FSumFitter:
             # Store fit mask and baseline mask for this dataset
             fit_masks.append(fit_mask.copy())
             baseline_masks.append(baseline_mask.copy())
+            baseline_params_list.append(baseline_params)  # Store baseline parameters (e.g., p value for fitmode 4)
             
             # Print results
             print(f'Iteration number {i}')
@@ -907,7 +953,8 @@ class FSumFitter:
             'intersects': np.array(intersects),
             'T': processed_T,  # 실제로 처리된 데이터셋만 저장
             'fit_masks': fit_masks,  # 각 데이터셋의 피팅 범위 마스크
-            'baseline_masks': baseline_masks  # 각 데이터셋의 baseline 계산 범위 마스크
+            'baseline_masks': baseline_masks,  # 각 데이터셋의 baseline 계산 범위 마스크
+            'baseline_params': baseline_params_list  # 각 데이터셋의 baseline 파라미터 (fitmode 4의 p값 등)
         }
         
         return results
@@ -960,6 +1007,12 @@ class FSumFitter:
                     
                     fit_params = results['fitresult'][dataset_num]
                     
+                    # Baseline parameters 확인 (fitmode 4의 p값 등)
+                    baseline_params = results.get('baseline_params', [])
+                    p_value = None
+                    if baseline_params and len(baseline_params) > dataset_num and baseline_params[dataset_num] is not None:
+                        p_value = baseline_params[dataset_num].get('p')
+                    
                     # 첫 번째 행: 데이터 헤더 + Fitting Parameters (H열부터)
                     # 첫 번째 열은 항상 Wavelength (nm)
                     energy_header = 'Wavelength (nm)'
@@ -985,6 +1038,9 @@ class FSumFitter:
                         'Baseline Range (nm)',
                         'Fitting Range (nm)'
                     ]
+                    # fitmode 4일 때만 p값 추가
+                    if self.fitmode == 4:
+                        header_row.append('Baseline p (E^p)')
                     writer.writerow(header_row)  # 4행
                     
                     # 두 번째 행: 파라미터 설명 (H열부터)
@@ -1011,6 +1067,9 @@ class FSumFitter:
                     description_row.append('Urbach tail intercept')  # R열: Urbach Intercept 설명
                     description_row.append('Baseline fitting wavelength range')  # S열: Baseline 범위 설명
                     description_row.append('Overall fitting wavelength range')  # T열: Fitting 범위 설명
+                    # fitmode 4일 때만 p값 설명 추가
+                    if self.fitmode == 4:
+                        description_row.append('Baseline scattering power (p in E^p)')  # U열: p값 설명
                     writer.writerow(description_row)  # 5행
                     
                     # 실제 Eb 계산
@@ -1095,8 +1154,12 @@ class FSumFitter:
                     # Baseline 범위와 Fitting 범위 추가 (이미 위에서 계산됨)
                     param_row.append(baseline_range_str)  # S열: Baseline 범위
                     param_row.append(fitting_range_str)  # T열: Fitting 범위
-                    param_row.append(baseline_range_str)  # S열: Baseline 범위
-                    param_row.append(fitting_range_str)  # T열: Fitting 범위
+                    # fitmode 4일 때만 p값 추가
+                    if self.fitmode == 4:
+                        if p_value is not None:
+                            param_row.append(f'{p_value:.6f}')  # U열: p값
+                        else:
+                            param_row.append('N/A')  # U열: p값 없음
                     writer.writerow(param_row)  # 6행: H열부터 파라미터 값 표시
                     # 빈 행 제거 - 데이터가 바로 7행부터 시작
                     
