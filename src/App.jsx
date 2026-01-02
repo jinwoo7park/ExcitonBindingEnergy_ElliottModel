@@ -23,9 +23,9 @@ function App() {
   const [fitmode, setFitmode] = useState(2)
   const [logoError, setLogoError] = useState(false)
 
-  // 컴포넌트 마운트 시 localStorage에서 인증 상태 확인
+  // 컴포넌트 마운트 시 sessionStorage에서 인증 상태 확인 (브라우저 탭 닫으면 만료)
   useEffect(() => {
-    const authStatus = localStorage.getItem('site_authenticated')
+    const authStatus = sessionStorage.getItem('site_authenticated')
     if (authStatus === 'true') {
       setIsAuthenticated(true)
     }
@@ -36,7 +36,7 @@ function App() {
     e.preventDefault()
     if (password === SITE_PASSWORD) {
       setIsAuthenticated(true)
-      localStorage.setItem('site_authenticated', 'true')
+      sessionStorage.setItem('site_authenticated', 'true')
       setPasswordError('')
       setPassword('')
     } else {
