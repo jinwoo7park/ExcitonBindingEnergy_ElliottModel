@@ -285,6 +285,58 @@ h1 {
   background: #555;
 }
 
+.password-container {
+  text-align: center;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 60px 20px;
+}
+
+.password-container h1 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.password-subtitle {
+  color: #666;
+  margin-bottom: 30px;
+  font-size: 1em;
+  text-align: center;
+}
+
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.password-form-group {
+  text-align: left;
+}
+
+.password-form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+.password-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1em;
+  background: white;
+}
+
+.password-input:focus {
+  outline: none;
+  border-color: #666;
+}
+
 .error {
   background: #fee;
   color: #c33;

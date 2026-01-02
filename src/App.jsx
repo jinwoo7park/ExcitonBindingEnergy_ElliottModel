@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import Plot from 'react-plotly.js'
 import './App.css'
@@ -6,7 +6,14 @@ import './App.css'
 // API 기본 URL 설정 (환경 변수 또는 기본값)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
+// 비밀번호 설정 (환경 변수 또는 기본값)
+const SITE_PASSWORD = import.meta.env.VITE_SITE_PASSWORD || 'password'
+
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [previewData, setPreviewData] = useState(null)
@@ -15,6 +22,28 @@ function App() {
   const [error, setError] = useState(null)
   const [fitmode, setFitmode] = useState(2)
   const [logoError, setLogoError] = useState(false)
+
+  // 컴포넌트 마운트 시 localStorage에서 인증 상태 확인
+  useEffect(() => {
+    const authStatus = localStorage.getItem('site_authenticated')
+    if (authStatus === 'true') {
+      setIsAuthenticated(true)
+    }
+  }, [])
+
+  // 비밀번호 확인 핸들러
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault()
+    if (password === SITE_PASSWORD) {
+      setIsAuthenticated(true)
+      localStorage.setItem('site_authenticated', 'true')
+      setPasswordError('')
+      setPassword('')
+    } else {
+      setPasswordError('비밀번호가 올바르지 않습니다.')
+      setPassword('')
+    }
+  }
 
   // Initial values 기본값
   // Eb와 Gamma는 meV 단위로 입력받음
@@ -385,6 +414,41 @@ function App() {
     }
 
     return shapes
+  }
+
+  // 비밀번호 입력 화면
+  if (!isAuthenticated) {
+    return (
+      <div className="app">
+        <div className="container">
+          <div className="password-container">
+            <h1>사이트 보호</h1>
+            <p className="password-subtitle">이 사이트는 비밀번호로 보호되어 있습니다.</p>
+            <form onSubmit={handlePasswordSubmit} className="password-form">
+              <div className="password-form-group">
+                <label htmlFor="password">비밀번호:</label>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    setPasswordError('')
+                  }}
+                  className="password-input"
+                  placeholder="비밀번호를 입력하세요"
+                  autoFocus
+                />
+              </div>
+              {passwordError && <div className="error">{passwordError}</div>}
+              <button type="submit" className="btn btn-primary">
+                접속
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
